@@ -1,0 +1,469 @@
+<html>
+  <head>
+    <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="" />
+    <link
+      rel="stylesheet"
+      as="style"
+      onload="this.rel='stylesheet'"
+      href="https://fonts.googleapis.com/css2?display=swap&amp;family=Inter%3Awght%40400%3B500%3B700%3B900&amp;family=Noto+Sans%3Awght%40400%3B500%3B700%3B900"
+    />
+
+    <title>Stitch Design</title>
+    <link rel="icon" type="image/x-icon" href="data:image/x-icon;base64," />
+
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  </head>
+  <body>
+    <div
+      class="relative flex h-auto min-h-screen w-full flex-col bg-[#111814] dark group/design-root overflow-x-hidden"
+      style="--checkbox-tick-svg: url('data:image/svg+xml,%3csvg viewBox=%270 0 16 16%27 fill=%27rgb(17,24,20)%27 xmlns=%27http://www.w3.org/2000/svg%27%3e%3cpath d=%27M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z%27/%3e%3c/svg%3e'); font-family: Inter, &quot;Noto Sans&quot;, sans-serif;"
+    >
+      <div class="layout-container flex h-full grow flex-col">
+        <header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-b-[#28392f] px-10 py-3">
+          <div class="flex items-center gap-4 text-white">
+            <div class="size-4">
+              <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M44 4H30.6666V17.3334H17.3334V30.6666H4V44H44V4Z" fill="currentColor"></path></svg>
+            </div>
+            <h2 class="text-white text-lg font-bold leading-tight tracking-[-0.015em]">TradeWise</h2>
+          </div>
+          <div class="flex flex-1 justify-end gap-8">
+            <div class="flex items-center gap-9">
+              <a class="text-white text-sm font-medium leading-normal" href="#">Dashboard</a>
+              <a class="text-white text-sm font-medium leading-normal" href="#">Trades</a>
+              <a class="text-white text-sm font-medium leading-normal" href="#">Strategies</a>
+              <a class="text-white text-sm font-medium leading-normal" href="#">Learn</a>
+              <a class="text-white text-sm font-medium leading-normal" href="#">Community</a>
+            </div>
+            <button
+              class="flex max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 bg-[#28392f] text-white gap-2 text-sm font-bold leading-normal tracking-[0.015em] min-w-0 px-2.5"
+            >
+              <div class="text-white" data-icon="Bell" data-size="20px" data-weight="regular">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" fill="currentColor" viewBox="0 0 256 256">
+                  <path
+                    d="M221.8,175.94C216.25,166.38,208,139.33,208,104a80,80,0,1,0-160,0c0,35.34-8.26,62.38-13.81,71.94A16,16,0,0,0,48,200H88.81a40,40,0,0,0,78.38,0H208a16,16,0,0,0,13.8-24.06ZM128,216a24,24,0,0,1-22.62-16h45.24A24,24,0,0,1,128,216ZM48,184c7.7-13.24,16-43.92,16-80a64,64,0,1,1,128,0c0,36.05,8.28,66.73,16,80Z"
+                  ></path>
+                </svg>
+              </div>
+            </button>
+            <div
+              class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10"
+              style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDFBZzBR6ee4Xea9wWsmP3GgssAhHs0n07mJI4EtRCKkBuHYccVNHUDZnGMis3pcPshnElgLZQNYYkW3MIGhyJA7O4xoIzEu--MQkzwv01i7BBqBorrWEdPacqZkUZfoxwZ9fkE3mVfT-hKIGdd0Ew3LD9h2iPQXDJxLSxzb3_cmxz1kf6qK3ZFTAj-uqbUQtu4FOLRcfrLq5NF6YMLus7QJkJj9k5-BPgT5g_aY6wAnEyVCNCUsTqY4Iy7h9T9FoZPwlDDiQ4lRr0");'
+            ></div>
+          </div>
+        </header>
+        <div class="px-40 flex flex-1 justify-center py-5">
+          <div class="layout-content-container flex flex-col max-w-[960px] flex-1">
+            <div class="px-4 py-3">
+              <label class="flex flex-col min-w-40 h-12 w-full">
+                <div class="flex w-full flex-1 items-stretch rounded-lg h-full">
+                  <div
+                    class="text-[#9db9a8] flex border-none bg-[#28392f] items-center justify-center pl-4 rounded-l-lg border-r-0"
+                    data-icon="MagnifyingGlass"
+                    data-size="24px"
+                    data-weight="regular"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor" viewBox="0 0 256 256">
+                      <path
+                        d="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z"
+                      ></path>
+                    </svg>
+                  </div>
+                  <input
+                    placeholder="Search trades"
+                    class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-white focus:outline-0 focus:ring-0 border-none bg-[#28392f] focus:border-none h-full placeholder:text-[#9db9a8] px-4 rounded-l-none border-l-0 pl-2 text-base font-normal leading-normal"
+                    value=""
+                  />
+                </div>
+              </label>
+            </div>
+            <div class="flex gap-3 p-3 flex-wrap pr-4">
+              <button class="flex h-8 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-[#28392f] pl-4 pr-2">
+                <p class="text-white text-sm font-medium leading-normal">Date Range</p>
+                <div class="text-white" data-icon="CaretDown" data-size="20px" data-weight="regular">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" fill="currentColor" viewBox="0 0 256 256">
+                    <path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"></path>
+                  </svg>
+                </div>
+              </button>
+              <button class="flex h-8 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-[#28392f] pl-4 pr-2">
+                <p class="text-white text-sm font-medium leading-normal">Asset</p>
+                <div class="text-white" data-icon="CaretDown" data-size="20px" data-weight="regular">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" fill="currentColor" viewBox="0 0 256 256">
+                    <path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"></path>
+                  </svg>
+                </div>
+              </button>
+              <button class="flex h-8 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-[#28392f] pl-4 pr-2">
+                <p class="text-white text-sm font-medium leading-normal">Win/Loss</p>
+                <div class="text-white" data-icon="CaretDown" data-size="20px" data-weight="regular">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" fill="currentColor" viewBox="0 0 256 256">
+                    <path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"></path>
+                  </svg>
+                </div>
+              </button>
+              <button class="flex h-8 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-[#28392f] pl-4 pr-2">
+                <p class="text-white text-sm font-medium leading-normal">Trading Pattern</p>
+                <div class="text-white" data-icon="CaretDown" data-size="20px" data-weight="regular">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" fill="currentColor" viewBox="0 0 256 256">
+                    <path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"></path>
+                  </svg>
+                </div>
+              </button>
+            </div>
+            <div class="flex flex-wrap gap-4 p-4">
+              <div class="flex min-w-[158px] flex-1 flex-col gap-2 rounded-lg p-6 border border-[#3b5445]">
+                <p class="text-white text-base font-medium leading-normal">Total Trades</p>
+                <p class="text-white tracking-light text-2xl font-bold leading-tight">125</p>
+              </div>
+              <div class="flex min-w-[158px] flex-1 flex-col gap-2 rounded-lg p-6 border border-[#3b5445]">
+                <p class="text-white text-base font-medium leading-normal">Win Rate %</p>
+                <p class="text-white tracking-light text-2xl font-bold leading-tight">62%</p>
+              </div>
+              <div class="flex min-w-[158px] flex-1 flex-col gap-2 rounded-lg p-6 border border-[#3b5445]">
+                <p class="text-white text-base font-medium leading-normal">Avg Win %</p>
+                <p class="text-white tracking-light text-2xl font-bold leading-tight">1.5%</p>
+              </div>
+              <div class="flex min-w-[158px] flex-1 flex-col gap-2 rounded-lg p-6 border border-[#3b5445]">
+                <p class="text-white text-base font-medium leading-normal">Avg Loss %</p>
+                <p class="text-white tracking-light text-2xl font-bold leading-tight">-0.8%</p>
+              </div>
+              <div class="flex min-w-[158px] flex-1 flex-col gap-2 rounded-lg p-6 border border-[#3b5445]">
+                <p class="text-white text-base font-medium leading-normal">Profit Factor</p>
+                <p class="text-white tracking-light text-2xl font-bold leading-tight">1.88</p>
+              </div>
+              <div class="flex min-w-[158px] flex-1 flex-col gap-2 rounded-lg p-6 border border-[#3b5445]">
+                <p class="text-white text-base font-medium leading-normal">Best Trade</p>
+                <p class="text-white tracking-light text-2xl font-bold leading-tight">+3.2%</p>
+              </div>
+              <div class="flex min-w-[158px] flex-1 flex-col gap-2 rounded-lg p-6 border border-[#3b5445]">
+                <p class="text-white text-base font-medium leading-normal">Worst Trade</p>
+                <p class="text-white tracking-light text-2xl font-bold leading-tight">-2.1%</p>
+              </div>
+            </div>
+            <div class="px-4 py-3 @container">
+              <div class="flex overflow-hidden rounded-lg border border-[#3b5445] bg-[#111814]">
+                <table class="flex-1">
+                  <thead>
+                    <tr class="bg-[#1c2720]">
+                      <th class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-120 px-4 py-3 text-left text-white w-[400px] text-sm font-medium leading-normal">Date/Time</th>
+                      <th class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-240 px-4 py-3 text-left text-white w-[400px] text-sm font-medium leading-normal">Asset</th>
+                      <th class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-360 px-4 py-3 text-left text-white w-[400px] text-sm font-medium leading-normal">Side</th>
+                      <th class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-480 px-4 py-3 text-left text-white w-[400px] text-sm font-medium leading-normal">Entry Price</th>
+                      <th class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-600 px-4 py-3 text-left text-white w-[400px] text-sm font-medium leading-normal">Exit Price</th>
+                      <th class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-720 px-4 py-3 text-left text-white w-[400px] text-sm font-medium leading-normal">Quantity</th>
+                      <th class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-840 px-4 py-3 text-left text-white w-[400px] text-sm font-medium leading-normal">P&amp;L</th>
+                      <th class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-960 px-4 py-3 text-left text-white w-[400px] text-sm font-medium leading-normal">P&amp;L %</th>
+                      <th class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1080 px-4 py-3 text-left text-white w-[400px] text-sm font-medium leading-normal">Duration</th>
+                      <th class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1200 px-4 py-3 text-left text-white w-60 text-sm font-medium leading-normal">Pattern</th>
+                      <th class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1320 px-4 py-3 text-left text-white w-[400px] text-sm font-medium leading-normal">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr class="border-t border-t-[#3b5445]">
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-120 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">
+                        2024-07-26 14:30
+                      </td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-240 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">BTC/USD</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-360 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">Buy</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-480 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">29,500</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-600 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">30,000</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-720 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">0.5</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-840 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">+250</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-960 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">+1.7%</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1080 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">1h 30m</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1200 h-[72px] px-4 py-2 w-60 text-sm font-normal leading-normal">
+                        <button
+                          class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-8 px-4 bg-[#28392f] text-white text-sm font-medium leading-normal w-full"
+                        >
+                          <span class="truncate">Breakout</span>
+                        </button>
+                      </td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1320 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">Won</td>
+                    </tr>
+                    <tr class="border-t border-t-[#3b5445]">
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-120 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">
+                        2024-07-25 10:00
+                      </td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-240 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">ETH/USD</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-360 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">Sell</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-480 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">1,800</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-600 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">1,750</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-720 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">2</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-840 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">-100</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-960 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">-2.8%</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1080 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">2h 15m</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1200 h-[72px] px-4 py-2 w-60 text-sm font-normal leading-normal">
+                        <button
+                          class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-8 px-4 bg-[#28392f] text-white text-sm font-medium leading-normal w-full"
+                        >
+                          <span class="truncate">Reversal</span>
+                        </button>
+                      </td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1320 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">Lost</td>
+                    </tr>
+                    <tr class="border-t border-t-[#3b5445]">
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-120 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">
+                        2024-07-24 16:45
+                      </td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-240 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">AAPL</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-360 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">Buy</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-480 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">150</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-600 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">152</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-720 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">10</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-840 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">+20</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-960 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">+1.3%</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1080 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">45m</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1200 h-[72px] px-4 py-2 w-60 text-sm font-normal leading-normal">
+                        <button
+                          class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-8 px-4 bg-[#28392f] text-white text-sm font-medium leading-normal w-full"
+                        >
+                          <span class="truncate">Trend Following</span>
+                        </button>
+                      </td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1320 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">Won</td>
+                    </tr>
+                    <tr class="border-t border-t-[#3b5445]">
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-120 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">
+                        2024-07-23 09:15
+                      </td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-240 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">TSLA</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-360 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">Sell</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-480 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">700</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-600 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">690</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-720 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">2</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-840 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">-20</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-960 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">-1.4%</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1080 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">1h</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1200 h-[72px] px-4 py-2 w-60 text-sm font-normal leading-normal">
+                        <button
+                          class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-8 px-4 bg-[#28392f] text-white text-sm font-medium leading-normal w-full"
+                        >
+                          <span class="truncate">Consolidation</span>
+                        </button>
+                      </td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1320 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">Lost</td>
+                    </tr>
+                    <tr class="border-t border-t-[#3b5445]">
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-120 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">
+                        2024-07-22 11:30
+                      </td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-240 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">BTC/USD</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-360 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">Buy</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-480 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">28,000</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-600 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">28,500</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-720 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">0.3</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-840 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">+150</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-960 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">+1.8%</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1080 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">2h</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1200 h-[72px] px-4 py-2 w-60 text-sm font-normal leading-normal">
+                        <button
+                          class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-8 px-4 bg-[#28392f] text-white text-sm font-medium leading-normal w-full"
+                        >
+                          <span class="truncate">Breakout</span>
+                        </button>
+                      </td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1320 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">Won</td>
+                    </tr>
+                    <tr class="border-t border-t-[#3b5445]">
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-120 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">
+                        2024-07-21 15:00
+                      </td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-240 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">ETH/USD</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-360 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">Sell</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-480 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">1,700</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-600 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">1,650</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-720 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">1.5</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-840 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">-75</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-960 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">-4.4%</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1080 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">1h 45m</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1200 h-[72px] px-4 py-2 w-60 text-sm font-normal leading-normal">
+                        <button
+                          class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-8 px-4 bg-[#28392f] text-white text-sm font-medium leading-normal w-full"
+                        >
+                          <span class="truncate">Reversal</span>
+                        </button>
+                      </td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1320 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">Lost</td>
+                    </tr>
+                    <tr class="border-t border-t-[#3b5445]">
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-120 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">
+                        2024-07-20 12:00
+                      </td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-240 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">AAPL</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-360 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">Buy</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-480 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">145</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-600 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">148</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-720 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">5</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-840 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">+15</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-960 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">+2.1%</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1080 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">30m</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1200 h-[72px] px-4 py-2 w-60 text-sm font-normal leading-normal">
+                        <button
+                          class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-8 px-4 bg-[#28392f] text-white text-sm font-medium leading-normal w-full"
+                        >
+                          <span class="truncate">Trend Following</span>
+                        </button>
+                      </td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1320 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">Won</td>
+                    </tr>
+                    <tr class="border-t border-t-[#3b5445]">
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-120 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">
+                        2024-07-19 14:00
+                      </td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-240 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">TSLA</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-360 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">Sell</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-480 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">680</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-600 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">670</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-720 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">1</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-840 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">-10</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-960 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">-1.5%</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1080 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">1h 15m</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1200 h-[72px] px-4 py-2 w-60 text-sm font-normal leading-normal">
+                        <button
+                          class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-8 px-4 bg-[#28392f] text-white text-sm font-medium leading-normal w-full"
+                        >
+                          <span class="truncate">Consolidation</span>
+                        </button>
+                      </td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1320 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">Lost</td>
+                    </tr>
+                    <tr class="border-t border-t-[#3b5445]">
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-120 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">
+                        2024-07-18 10:30
+                      </td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-240 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">BTC/USD</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-360 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">Buy</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-480 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">27,500</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-600 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">28,000</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-720 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">0.4</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-840 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">+200</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-960 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">+1.8%</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1080 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">1h 30m</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1200 h-[72px] px-4 py-2 w-60 text-sm font-normal leading-normal">
+                        <button
+                          class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-8 px-4 bg-[#28392f] text-white text-sm font-medium leading-normal w-full"
+                        >
+                          <span class="truncate">Breakout</span>
+                        </button>
+                      </td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1320 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">Won</td>
+                    </tr>
+                    <tr class="border-t border-t-[#3b5445]">
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-120 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">
+                        2024-07-17 16:00
+                      </td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-240 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">ETH/USD</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-360 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">Sell</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-480 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">1,600</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-600 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">1,550</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-720 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">2.5</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-840 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">-125</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-960 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">-3.1%</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1080 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">2h</td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1200 h-[72px] px-4 py-2 w-60 text-sm font-normal leading-normal">
+                        <button
+                          class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-8 px-4 bg-[#28392f] text-white text-sm font-medium leading-normal w-full"
+                        >
+                          <span class="truncate">Reversal</span>
+                        </button>
+                      </td>
+                      <td class="table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1320 h-[72px] px-4 py-2 w-[400px] text-[#9db9a8] text-sm font-normal leading-normal">Lost</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <style>
+                          @container(max-width:120px){.table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-120{display: none;}}
+                @container(max-width:240px){.table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-240{display: none;}}
+                @container(max-width:360px){.table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-360{display: none;}}
+                @container(max-width:480px){.table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-480{display: none;}}
+                @container(max-width:600px){.table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-600{display: none;}}
+                @container(max-width:720px){.table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-720{display: none;}}
+                @container(max-width:840px){.table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-840{display: none;}}
+                @container(max-width:960px){.table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-960{display: none;}}
+                @container(max-width:1080px){.table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1080{display: none;}}
+                @container(max-width:1200px){.table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1200{display: none;}}
+                @container(max-width:1320px){.table-d2ea3a83-2d99-4744-8b97-1ccf880fe463-column-1320{display: none;}}
+              </style>
+            </div>
+          </div>
+          <div class="layout-content-container flex flex-col">
+            <h2 class="text-white text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">Trade Details</h2>
+            <div class="flex w-full grow bg-[#111814] @container p-4">
+              <div class="w-full gap-1 overflow-hidden bg-[#111814] @[480px]:gap-2 aspect-[3/2] rounded-lg flex">
+                <div
+                  class="w-full bg-center bg-no-repeat bg-cover aspect-auto rounded-none flex-1"
+                  style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuA6x9qTYmrJ3uKex_B7hXQj0Fs_bgrwh_ObK7Az8xGasZyRVTwt_jq9Ee6MBgwtK-_JDZODQ2t-qo-iP260KYv7xiEJOo_8izHSiktX9cemFZ7t0jEtsekr70GPqk6TxiVz0UaTmOYcNLZGPeG8ROIa4AALvsdO-sbqkZSsDlOhEPMPCFKhR7TxnxJWF1RRzF0Qh4WoPDIpONHOIKAKG4nFpyVzvxmdZ9X9Y8OLM9-qAu87anNbaBVvCTIwMSyt1fj460jO1buLhrM");'
+                ></div>
+              </div>
+            </div>
+            <div class="flex w-full grow bg-[#111814] @container p-4">
+              <div class="w-full gap-1 overflow-hidden bg-[#111814] @[480px]:gap-2 aspect-[3/2] rounded-lg flex">
+                <div
+                  class="w-full bg-center bg-no-repeat bg-cover aspect-auto rounded-none flex-1"
+                  style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAY_isR3FHRHNmglQqguGyeAd5b4qdq3d1JWVjxf6GK6ZFBJZUAkTPmsxQLFWvhfb_yEPz70eYduDRdFKc0ubLkqVfIaMyGE0P_9Jt6LN3b3lLZl0mS7JlE-1HoK5RXa8kjIZkpwp6nPCEFXx8iev6UPHDtd_eBJeXuai9Quh59qzvlobJVi-3gGTx6ltVe1MvK2ooS155e7ptN0T5k8C9aiMeZB67Fesf3YJ-PYupM0mGnp34s-uWFG-pvMs2EUHysp46GtCwQEvQ");'
+                ></div>
+              </div>
+            </div>
+            <h3 class="text-white text-lg font-bold leading-tight tracking-[-0.015em] px-4 pb-2 pt-4">AI Reasoning at Entry</h3>
+            <p class="text-white text-base font-normal leading-normal pb-3 pt-1 px-4">
+              The AI identified a breakout pattern in BTC/USD, suggesting a potential upward trend. The entry was triggered by a significant price increase above a key resistance
+              level, indicating strong buying pressure.
+            </p>
+            <h3 class="text-white text-lg font-bold leading-tight tracking-[-0.015em] px-4 pb-2 pt-4">Outcome Analysis</h3>
+            <p class="text-white text-base font-normal leading-normal pb-3 pt-1 px-4">
+              The trade was successful, with the price of BTC/USD increasing as predicted. The AI's analysis of the breakout pattern proved accurate, leading to a profitable
+              outcome.
+            </p>
+            <h3 class="text-white text-lg font-bold leading-tight tracking-[-0.015em] px-4 pb-2 pt-4">What Went Right</h3>
+            <div class="px-4">
+              <label class="flex gap-x-3 py-3 flex-row">
+                <input
+                  type="checkbox"
+                  class="h-5 w-5 rounded border-[#3b5445] border-2 bg-transparent text-[#0fb853] checked:bg-[#0fb853] checked:border-[#0fb853] checked:bg-[image:--checkbox-tick-svg] focus:ring-0 focus:ring-offset-0 focus:border-[#3b5445] focus:outline-none"
+                />
+                <p class="text-white text-base font-normal leading-normal">Accurate pattern identification</p>
+              </label>
+              <label class="flex gap-x-3 py-3 flex-row">
+                <input
+                  type="checkbox"
+                  class="h-5 w-5 rounded border-[#3b5445] border-2 bg-transparent text-[#0fb853] checked:bg-[#0fb853] checked:border-[#0fb853] checked:bg-[image:--checkbox-tick-svg] focus:ring-0 focus:ring-offset-0 focus:border-[#3b5445] focus:outline-none"
+                />
+                <p class="text-white text-base font-normal leading-normal">Well-timed entry based on breakout</p>
+              </label>
+            </div>
+            <h3 class="text-white text-lg font-bold leading-tight tracking-[-0.015em] px-4 pb-2 pt-4">What Went Wrong</h3>
+            <div class="px-4">
+              <label class="flex gap-x-3 py-3 flex-row">
+                <input
+                  type="checkbox"
+                  class="h-5 w-5 rounded border-[#3b5445] border-2 bg-transparent text-[#0fb853] checked:bg-[#0fb853] checked:border-[#0fb853] checked:bg-[image:--checkbox-tick-svg] focus:ring-0 focus:ring-offset-0 focus:border-[#3b5445] focus:outline-none"
+                />
+                <p class="text-white text-base font-normal leading-normal">None</p>
+              </label>
+            </div>
+            <h3 class="text-white text-lg font-bold leading-tight tracking-[-0.015em] px-4 pb-2 pt-4">Key Learning Points</h3>
+            <p class="text-white text-base font-normal leading-normal pb-3 pt-1 px-4">
+              Breakout patterns can be reliable indicators of potential price increases. Monitoring key resistance levels is crucial for identifying breakout opportunities.
+            </p>
+            <h3 class="text-white text-lg font-bold leading-tight tracking-[-0.015em] px-4 pb-2 pt-4">Pattern Identification</h3>
+            <div class="flex gap-3 p-3 flex-wrap pr-4">
+              <div class="flex h-8 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-[#28392f] pl-4 pr-4">
+                <p class="text-white text-sm font-medium leading-normal">Breakout</p>
+              </div>
+            </div>
+            <h3 class="text-white text-lg font-bold leading-tight tracking-[-0.015em] px-4 pb-2 pt-4">Notes</h3>
+            <div class="flex max-w-[480px] flex-wrap items-end gap-4 px-4 py-3">
+              <label class="flex flex-col min-w-40 flex-1">
+                <textarea
+                  placeholder="Add your notes here..."
+                  class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-white focus:outline-0 focus:ring-0 border border-[#3b5445] bg-[#1c2720] focus:border-[#3b5445] min-h-36 placeholder:text-[#9db9a8] p-[15px] text-base font-normal leading-normal"
+                ></textarea>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
