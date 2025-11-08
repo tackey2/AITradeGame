@@ -13,7 +13,7 @@ from version import __version__, __github_owner__, __repo__, GITHUB_REPO_URL, LA
 
 # NEW - Enhanced system imports
 from database_enhanced import EnhancedDatabase
-from trading_modes import TradingExecutor, TradingMode
+from trading_modes import TradingExecutor
 from risk_manager import RiskManager
 from notifier import Notifier
 from explainer import AIExplainer
