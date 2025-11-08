@@ -11,6 +11,13 @@ def check_database():
     print("=" * 60)
 
     db = EnhancedDatabase('AITradeGame.db')
+
+    # IMPORTANT: Initialize database schema first
+    print("\n0. INITIALIZING DATABASE SCHEMA...")
+    print("-" * 60)
+    db.init_db()
+    print("✓ Database schema initialized")
+
     conn = db.get_connection()
     cursor = conn.cursor()
 
