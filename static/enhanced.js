@@ -34,14 +34,38 @@ function setupEventListeners() {
         }
     });
 
-    // Mode selection
-    document.querySelectorAll('input[name="mode"]').forEach(radio => {
+    // Environment selection
+    document.querySelectorAll('input[name="environment"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
             if (currentModelId) {
-                setTradingMode(e.target.value);
+                const newEnv = e.target.value;
+                // Warn before switching to Live
+                if (newEnv === 'live') {
+                    showLiveWarning(() => {
+                        setTradingEnvironment(newEnv);
+                    }, () => {
+                        // Cancelled - revert to simulation
+                        document.getElementById('envSimulation').checked = true;
+                    });
+                } else {
+                    setTradingEnvironment(newEnv);
+                }
             }
         });
     });
+
+    // Automation selection
+    document.querySelectorAll('input[name="automation"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            if (currentModelId) {
+                setAutomationLevel(e.target.value);
+            }
+        });
+    });
+
+    // Live warning modal
+    document.getElementById('cancelLiveBtn').addEventListener('click', () => closeLiveWarning(false));
+    document.getElementById('confirmLiveBtn').addEventListener('click', () => closeLiveWarning(true));
 
     // Action buttons
     document.getElementById('refreshBtn').addEventListener('click', () => refreshCurrentPage());
@@ -153,72 +177,122 @@ async function loadDashboardData() {
     ]);
 }
 
-// Trading Mode
+// Trading Configuration (Environment + Automation)
 async function loadTradingMode() {
     try {
-        const response = await fetch(`/api/models/${currentModelId}/mode`);
-        const data = await response.json();
+        const response = await fetch(`/api/models/${currentModelId}/config`);
+        const config = await response.json();
 
-        const mode = data.mode || 'simulation';
+        const environment = config.environment || 'simulation';
+        const automation = config.automation || 'manual';
 
-        // Update radio buttons
-        document.querySelectorAll('input[name="mode"]').forEach(radio => {
-            radio.checked = radio.value === mode;
+        // Update environment radio buttons
+        document.querySelectorAll('input[name="environment"]').forEach(radio => {
+            radio.checked = radio.value === environment;
+        });
+
+        // Update automation radio buttons
+        document.querySelectorAll('input[name="automation"]').forEach(radio => {
+            radio.checked = radio.value === automation;
         });
 
         // Update header badge
-        updateModeBadge(mode);
+        updateModeBadge(environment, automation);
     } catch (error) {
-        console.error('Failed to load trading mode:', error);
+        console.error('Failed to load trading configuration:', error);
     }
 }
 
-async function setTradingMode(mode) {
+async function setTradingEnvironment(environment) {
     try {
-        const response = await fetch(`/api/models/${currentModelId}/mode`, {
+        const response = await fetch(`/api/models/${currentModelId}/environment`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mode })
+            body: JSON.stringify({ environment })
         });
 
         const data = await response.json();
 
         if (data.success) {
-            updateModeBadge(mode);
-            showToast(`Mode changed to ${formatModeName(mode)}`);
+            // Reload to update badge
+            await loadTradingMode();
+            showToast(`Environment changed to ${formatEnvironmentName(environment)}`);
         } else {
-            showToast(data.error || 'Failed to change mode', 'error');
+            showToast(data.error || 'Failed to change environment', 'error');
+            // Revert on failure
+            await loadTradingMode();
         }
     } catch (error) {
-        console.error('Failed to set trading mode:', error);
-        showToast('Failed to change mode', 'error');
+        console.error('Failed to set trading environment:', error);
+        showToast('Failed to change environment', 'error');
+        // Revert on failure
+        await loadTradingMode();
     }
 }
 
-function updateModeBadge(mode) {
+async function setAutomationLevel(automation) {
+    try {
+        const response = await fetch(`/api/models/${currentModelId}/automation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ automation })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            // Reload to update badge
+            await loadTradingMode();
+            showToast(`Automation changed to ${formatAutomationName(automation)}`);
+        } else {
+            showToast(data.error || 'Failed to change automation', 'error');
+            // Revert on failure
+            await loadTradingMode();
+        }
+    } catch (error) {
+        console.error('Failed to set automation level:', error);
+        showToast('Failed to change automation', 'error');
+        // Revert on failure
+        await loadTradingMode();
+    }
+}
+
+function updateModeBadge(environment, automation) {
     const badge = document.getElementById('currentModeBadge');
-    const text = document.getElementById('currentModeText');
+    const envText = document.getElementById('currentEnvironmentText');
+    const autoText = document.getElementById('currentAutomationText');
     const icon = badge.querySelector('.mode-icon');
 
-    text.textContent = formatModeName(mode);
+    envText.textContent = formatEnvironmentName(environment);
+    autoText.textContent = formatAutomationName(automation);
 
-    // Update color
-    if (mode === 'simulation') {
+    // Update color based on combination
+    if (environment === 'simulation') {
         icon.style.color = 'var(--color-info)';
-    } else if (mode === 'semi_automated') {
+    } else if (environment === 'live' && automation === 'manual') {
+        icon.style.color = 'var(--color-info)';
+    } else if (environment === 'live' && automation === 'semi_automated') {
         icon.style.color = 'var(--color-warning)';
-    } else if (mode === 'fully_automated') {
+    } else if (environment === 'live' && automation === 'fully_automated') {
         icon.style.color = 'var(--color-danger)';
     }
 }
 
-function formatModeName(mode) {
+function formatEnvironmentName(environment) {
     const names = {
         'simulation': 'Simulation',
+        'live': 'Live'
+    };
+    return names[environment] || environment;
+}
+
+function formatAutomationName(automation) {
+    const names = {
+        'manual': 'Manual',
         'semi_automated': 'Semi-Auto',
         'fully_automated': 'Full-Auto'
     };
-    return names[mode] || mode;
+    return names[automation] || automation;
 }
 
 // Risk Status
@@ -639,22 +713,23 @@ async function executeTradingCycle() {
 }
 
 async function pauseModel() {
-    if (!confirm('Pause this model? (switches to semi-automated mode)')) return;
+    if (!confirm('Pause this model? (switches automation to manual)')) return;
 
     try {
-        const response = await fetch(`/api/models/${currentModelId}/pause`, {
+        // Set automation to manual
+        const response = await fetch(`/api/models/${currentModelId}/automation`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ reason: 'User-initiated pause' })
+            body: JSON.stringify({ automation: 'manual' })
         });
 
         const result = await response.json();
 
         if (result.success) {
-            showToast('Model paused');
+            showToast('Model paused (switched to manual)');
             loadTradingMode();
         } else {
-            showToast(result.message || 'Model already paused');
+            showToast(result.error || 'Failed to pause model', 'error');
         }
     } catch (error) {
         console.error('Failed to pause model:', error);
@@ -684,6 +759,29 @@ async function emergencyStopAll() {
         console.error('Failed to emergency stop:', error);
         showToast('Failed to emergency stop', 'error');
     }
+}
+
+// Live Warning Modal
+let liveWarningCallback = null;
+let liveWarningCancelCallback = null;
+
+function showLiveWarning(onConfirm, onCancel) {
+    liveWarningCallback = onConfirm;
+    liveWarningCancelCallback = onCancel;
+    document.getElementById('liveWarningModal').classList.add('active');
+}
+
+function closeLiveWarning(confirmed) {
+    document.getElementById('liveWarningModal').classList.remove('active');
+
+    if (confirmed && liveWarningCallback) {
+        liveWarningCallback();
+    } else if (!confirmed && liveWarningCancelCallback) {
+        liveWarningCancelCallback();
+    }
+
+    liveWarningCallback = null;
+    liveWarningCancelCallback = null;
 }
 
 // Toast Notification

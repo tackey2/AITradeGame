@@ -19,7 +19,9 @@
                     </h1>
                     <div class="mode-badge" id="currentModeBadge">
                         <span class="mode-icon">●</span>
-                        <span id="currentModeText">Simulation</span>
+                        <span id="currentEnvironmentText">Simulation</span>
+                        <span class="mode-separator">|</span>
+                        <span id="currentAutomationText">Manual</span>
                     </div>
                 </div>
                 <div class="header-right">
@@ -72,43 +74,75 @@
                 </div>
             </div>
 
-            <!-- Mode Control -->
+            <!-- Trading Environment -->
             <div class="section">
                 <div class="section-header">
-                    <h2>Trading Mode</h2>
-                    <span class="help-icon" title="Control how the system executes trades">
+                    <h2>Trading Environment</h2>
+                    <span class="help-icon" title="WHERE trades are executed - simulation or live exchange">
                         <i class="bi bi-question-circle"></i>
                     </span>
                 </div>
                 <div class="mode-control">
-                    <div class="mode-option" data-mode="simulation">
-                        <input type="radio" name="mode" id="modeSimulation" value="simulation">
-                        <label for="modeSimulation">
+                    <div class="mode-option" data-environment="simulation">
+                        <input type="radio" name="environment" id="envSimulation" value="simulation">
+                        <label for="envSimulation">
                             <div class="mode-title">
                                 <i class="bi bi-laptop"></i>
-                                Simulation
+                                Simulation (Paper Trading)
                             </div>
-                            <div class="mode-desc">Practice with virtual money. No real trades executed.</div>
+                            <div class="mode-desc">Practice with virtual money. Database only, no real exchange API calls.</div>
                         </label>
                     </div>
-                    <div class="mode-option" data-mode="semi_automated">
-                        <input type="radio" name="mode" id="modeSemiAuto" value="semi_automated">
-                        <label for="modeSemiAuto">
+                    <div class="mode-option" data-environment="live">
+                        <input type="radio" name="environment" id="envLive" value="live">
+                        <label for="envLive">
+                            <div class="mode-title">
+                                <i class="bi bi-broadcast"></i>
+                                Live Trading
+                            </div>
+                            <div class="mode-desc">⚠️ REAL MONEY - Executes on real exchange (testnet or mainnet).</div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Automation Level -->
+            <div class="section">
+                <div class="section-header">
+                    <h2>Automation Level</h2>
+                    <span class="help-icon" title="HOW much control you have - manual, semi-auto, or full-auto">
+                        <i class="bi bi-question-circle"></i>
+                    </span>
+                </div>
+                <div class="mode-control">
+                    <div class="mode-option" data-automation="manual">
+                        <input type="radio" name="automation" id="autoManual" value="manual">
+                        <label for="autoManual">
+                            <div class="mode-title">
+                                <i class="bi bi-eye"></i>
+                                Manual (View Only)
+                            </div>
+                            <div class="mode-desc">View AI decisions, no execution. Use for learning and observation.</div>
+                        </label>
+                    </div>
+                    <div class="mode-option" data-automation="semi_automated">
+                        <input type="radio" name="automation" id="autoSemiAuto" value="semi_automated">
+                        <label for="autoSemiAuto">
                             <div class="mode-title">
                                 <i class="bi bi-hand-thumbs-up"></i>
-                                Semi-Automated
+                                Semi-Automated (Review & Approve)
                             </div>
-                            <div class="mode-desc">Review and approve each AI decision before execution.</div>
+                            <div class="mode-desc">Review and approve each AI decision before execution. You stay in control.</div>
                         </label>
                     </div>
-                    <div class="mode-option" data-mode="fully_automated">
-                        <input type="radio" name="mode" id="modeFullAuto" value="fully_automated">
-                        <label for="modeFullAuto">
+                    <div class="mode-option" data-automation="fully_automated">
+                        <input type="radio" name="automation" id="autoFullAuto" value="fully_automated">
+                        <label for="autoFullAuto">
                             <div class="mode-title">
                                 <i class="bi bi-lightning-charge-fill"></i>
-                                Fully Automated
+                                Fully Automated (Autonomous)
                             </div>
-                            <div class="mode-desc">AI trades automatically. Use only when ready.</div>
+                            <div class="mode-desc">🤖 AI trades automatically after risk checks. Use only when fully ready.</div>
                         </label>
                     </div>
                 </div>
@@ -337,6 +371,53 @@
                         <p>No incidents</p>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Environment Warning Modal -->
+    <div class="modal" id="liveWarningModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>
+                    <i class="bi bi-exclamation-triangle-fill" style="color: var(--color-danger);"></i>
+                    Switch to Live Trading?
+                </h3>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: 16px; margin-bottom: 16px;">
+                    <strong>⚠️ WARNING: You are about to switch to LIVE TRADING mode.</strong>
+                </p>
+                <p style="margin-bottom: 12px;">This means:</p>
+                <ul style="margin-left: 20px; margin-bottom: 16px;">
+                    <li>Trades will execute on a REAL exchange</li>
+                    <li>REAL MONEY will be at risk</li>
+                    <li>Losses can and will happen</li>
+                    <li>You are responsible for all trades</li>
+                </ul>
+                <p style="margin-bottom: 16px;">
+                    <strong>Before proceeding, ensure:</strong>
+                </p>
+                <ul style="margin-left: 20px; margin-bottom: 16px;">
+                    <li>✓ You have tested extensively in Simulation mode</li>
+                    <li>✓ You understand the risks involved</li>
+                    <li>✓ Your risk management settings are appropriate</li>
+                    <li>✓ You are using testnet first (not mainnet)</li>
+                    <li>✓ You can afford to lose the capital allocated</li>
+                </ul>
+                <p style="color: var(--color-danger); font-weight: 600;">
+                    Are you absolutely sure you want to proceed?
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="cancelLiveBtn">
+                    <i class="bi bi-x-circle"></i>
+                    No, Stay in Simulation
+                </button>
+                <button class="btn-danger" id="confirmLiveBtn">
+                    <i class="bi bi-check-circle"></i>
+                    Yes, Switch to Live
+                </button>
             </div>
         </div>
     </div>
