@@ -51,6 +51,11 @@ def index():
 def enhanced():
     return render_template('enhanced.html')
 
+@app.route('/test_ui_debug.html')
+def test_ui_debug():
+    with open('test_ui_debug.html', 'r') as f:
+        return f.read()
+
 # ============ Provider API Endpoints ============
 
 @app.route('/api/providers', methods=['GET'])
