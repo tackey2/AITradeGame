@@ -1,0 +1,700 @@
+// Enhanced Dashboard JavaScript
+
+let currentModelId = null;
+let currentDecisionId = null;
+let refreshInterval = null;
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+    initializeApp();
+    setupEventListeners();
+    startAutoRefresh();
+});
+
+function initializeApp() {
+    loadModels();
+}
+
+function setupEventListeners() {
+    // Navigation
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            if (btn.hasAttribute('data-page')) {
+                e.preventDefault();
+                switchPage(btn.dataset.page);
+            }
+        });
+    });
+
+    // Model selector
+    document.getElementById('modelSelect').addEventListener('change', (e) => {
+        currentModelId = parseInt(e.target.value);
+        if (currentModelId) {
+            loadModelData();
+        }
+    });
+
+    // Mode selection
+    document.querySelectorAll('input[name="mode"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            if (currentModelId) {
+                setTradingMode(e.target.value);
+            }
+        });
+    });
+
+    // Action buttons
+    document.getElementById('refreshBtn').addEventListener('click', () => refreshCurrentPage());
+    document.getElementById('emergencyStopBtn').addEventListener('click', () => emergencyStopAll());
+    document.getElementById('executeTradingBtn').addEventListener('click', () => executeTradingCycle());
+    document.getElementById('pauseModelBtn').addEventListener('click', () => pauseModel());
+
+    // Settings page
+    document.getElementById('saveSettingsBtn').addEventListener('click', () => saveSettings());
+    document.getElementById('resetSettingsBtn').addEventListener('click', () => loadSettings());
+    document.getElementById('refreshIncidentsBtn').addEventListener('click', () => loadIncidents());
+
+    // Modal
+    document.getElementById('closeDecisionModal').addEventListener('click', () => closeModal());
+    document.getElementById('approveDecisionBtn').addEventListener('click', () => approveDecision());
+    document.getElementById('rejectDecisionBtn').addEventListener('click', () => rejectDecision());
+    document.getElementById('modifyDecisionBtn').addEventListener('click', () => modifyDecision());
+}
+
+// Page Navigation
+function switchPage(pageName) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+
+    document.getElementById(`${pageName}Page`).classList.add('active');
+    document.querySelector(`[data-page="${pageName}"]`).classList.add('active');
+
+    // Load page-specific data
+    if (currentModelId) {
+        switch(pageName) {
+            case 'dashboard':
+                loadDashboardData();
+                break;
+            case 'settings':
+                loadSettings();
+                break;
+            case 'readiness':
+                loadReadinessAssessment();
+                break;
+            case 'incidents':
+                loadIncidents();
+                break;
+        }
+    }
+}
+
+function refreshCurrentPage() {
+    const activePage = document.querySelector('.page.active');
+    if (!activePage || !currentModelId) return;
+
+    const pageName = activePage.id.replace('Page', '');
+    switchPage(pageName);
+    showToast('Refreshed');
+}
+
+// Auto-refresh
+function startAutoRefresh() {
+    refreshInterval = setInterval(() => {
+        if (currentModelId) {
+            const activePage = document.querySelector('.page.active');
+            if (activePage && activePage.id === 'dashboardPage') {
+                loadPendingDecisions();
+                loadRiskStatus();
+            }
+        }
+    }, 10000); // Every 10 seconds
+}
+
+// Load Models
+async function loadModels() {
+    try {
+        const response = await fetch('/api/models');
+        const models = await response.json();
+
+        const select = document.getElementById('modelSelect');
+        select.innerHTML = models.length === 0
+            ? '<option value="">No models available</option>'
+            : '<option value="">Select a model...</option>';
+
+        models.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.id;
+            option.textContent = model.name;
+            select.appendChild(option);
+        });
+
+        // Auto-select first model
+        if (models.length > 0) {
+            select.value = models[0].id;
+            currentModelId = models[0].id;
+            loadModelData();
+        }
+    } catch (error) {
+        console.error('Failed to load models:', error);
+        showToast('Failed to load models', 'error');
+    }
+}
+
+// Load Model Data
+async function loadModelData() {
+    await loadTradingMode();
+    await loadDashboardData();
+}
+
+async function loadDashboardData() {
+    await Promise.all([
+        loadRiskStatus(),
+        loadPendingDecisions()
+    ]);
+}
+
+// Trading Mode
+async function loadTradingMode() {
+    try {
+        const response = await fetch(`/api/models/${currentModelId}/mode`);
+        const data = await response.json();
+
+        const mode = data.mode || 'simulation';
+
+        // Update radio buttons
+        document.querySelectorAll('input[name="mode"]').forEach(radio => {
+            radio.checked = radio.value === mode;
+        });
+
+        // Update header badge
+        updateModeBadge(mode);
+    } catch (error) {
+        console.error('Failed to load trading mode:', error);
+    }
+}
+
+async function setTradingMode(mode) {
+    try {
+        const response = await fetch(`/api/models/${currentModelId}/mode`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            updateModeBadge(mode);
+            showToast(`Mode changed to ${formatModeName(mode)}`);
+        } else {
+            showToast(data.error || 'Failed to change mode', 'error');
+        }
+    } catch (error) {
+        console.error('Failed to set trading mode:', error);
+        showToast('Failed to change mode', 'error');
+    }
+}
+
+function updateModeBadge(mode) {
+    const badge = document.getElementById('currentModeBadge');
+    const text = document.getElementById('currentModeText');
+    const icon = badge.querySelector('.mode-icon');
+
+    text.textContent = formatModeName(mode);
+
+    // Update color
+    if (mode === 'simulation') {
+        icon.style.color = 'var(--color-info)';
+    } else if (mode === 'semi_automated') {
+        icon.style.color = 'var(--color-warning)';
+    } else if (mode === 'fully_automated') {
+        icon.style.color = 'var(--color-danger)';
+    }
+}
+
+function formatModeName(mode) {
+    const names = {
+        'simulation': 'Simulation',
+        'semi_automated': 'Semi-Auto',
+        'fully_automated': 'Full-Auto'
+    };
+    return names[mode] || mode;
+}
+
+// Risk Status
+async function loadRiskStatus() {
+    try {
+        const response = await fetch(`/api/models/${currentModelId}/risk-status`);
+        const risk = await response.json();
+
+        // Update each risk card
+        updateRiskCard('PositionSize', risk.position_size);
+        updateRiskCard('DailyLoss', risk.daily_loss);
+        updateRiskCard('OpenPositions', risk.open_positions);
+        updateRiskCard('CashReserve', risk.cash_reserve);
+        updateRiskCard('DailyTrades', risk.daily_trades);
+    } catch (error) {
+        console.error('Failed to load risk status:', error);
+    }
+}
+
+function updateRiskCard(name, data) {
+    const valueEl = document.getElementById(`risk${name}`);
+    const statusEl = document.getElementById(`status${name}`);
+
+    if (!valueEl || !statusEl || !data) return;
+
+    // Format value based on type
+    let value = '';
+    if (data.usage_pct !== undefined) {
+        value = `${data.usage_pct.toFixed(1)}%`;
+    } else if (data.current_pct !== undefined) {
+        value = `${data.current_pct.toFixed(1)}%`;
+    } else if (data.current !== undefined) {
+        value = data.current.toString();
+    }
+
+    valueEl.textContent = value;
+
+    // Update status
+    statusEl.textContent = data.status.toUpperCase();
+    statusEl.className = 'risk-status';
+    statusEl.classList.add(`status-${data.status}`);
+}
+
+// Pending Decisions
+async function loadPendingDecisions() {
+    try {
+        const response = await fetch(`/api/pending-decisions?model_id=${currentModelId}`);
+        const decisions = await response.json();
+
+        const container = document.getElementById('pendingDecisionsContainer');
+        const countBadge = document.getElementById('pendingCount');
+
+        countBadge.textContent = decisions.length;
+
+        if (decisions.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="bi bi-inbox"></i>
+                    <p>No pending decisions</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = decisions.map(decision => renderDecisionCard(decision)).join('');
+
+        // Add event listeners to decision cards
+        document.querySelectorAll('.decision-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const decisionId = parseInt(card.dataset.decisionId);
+                showDecisionDetail(decisionId);
+            });
+        });
+    } catch (error) {
+        console.error('Failed to load pending decisions:', error);
+    }
+}
+
+function renderDecisionCard(decision) {
+    const data = decision.decision_data;
+    const signalClass = data.signal.includes('buy') ? 'signal-buy' : 'signal-sell';
+
+    return `
+        <div class="decision-card" data-decision-id="${decision.id}">
+            <div class="decision-header">
+                <div class="decision-coin">${decision.coin}</div>
+                <div class="decision-signal ${signalClass}">${formatSignal(data.signal)}</div>
+            </div>
+            <div class="decision-details">
+                <div class="decision-detail">
+                    <div class="decision-detail-label">Quantity</div>
+                    <div class="decision-detail-value">${data.quantity}</div>
+                </div>
+                <div class="decision-detail">
+                    <div class="decision-detail-label">Leverage</div>
+                    <div class="decision-detail-value">${data.leverage}x</div>
+                </div>
+                <div class="decision-detail">
+                    <div class="decision-detail-label">Confidence</div>
+                    <div class="decision-detail-value">${(data.confidence * 100).toFixed(0)}%</div>
+                </div>
+            </div>
+            <div class="decision-justification">
+                ${data.justification || 'No justification provided'}
+            </div>
+            <div class="decision-expires">
+                Created: ${formatTimestamp(decision.created_at)}
+            </div>
+        </div>
+    `;
+}
+
+function formatSignal(signal) {
+    const signals = {
+        'buy_to_enter': 'Buy to Enter',
+        'buy_to_exit': 'Buy to Exit',
+        'sell_to_enter': 'Sell to Enter',
+        'sell_to_exit': 'Sell to Exit',
+        'hold': 'Hold'
+    };
+    return signals[signal] || signal;
+}
+
+function formatTimestamp(timestamp) {
+    return new Date(timestamp).toLocaleString();
+}
+
+// Decision Detail Modal
+async function showDecisionDetail(decisionId) {
+    try {
+        const response = await fetch(`/api/pending-decisions`);
+        const decisions = await response.json();
+        const decision = decisions.find(d => d.id === decisionId);
+
+        if (!decision) {
+            showToast('Decision not found', 'error');
+            return;
+        }
+
+        currentDecisionId = decisionId;
+
+        const data = decision.decision_data;
+        const explanation = decision.explanation_data || {};
+
+        const modalBody = document.getElementById('decisionModalBody');
+        modalBody.innerHTML = `
+            <div style="margin-bottom: 20px;">
+                <h3>${decision.coin} - ${formatSignal(data.signal)}</h3>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 20px;">
+                <div>
+                    <div style="color: var(--text-secondary); margin-bottom: 4px;">Quantity</div>
+                    <div style="font-weight: 600;">${data.quantity}</div>
+                </div>
+                <div>
+                    <div style="color: var(--text-secondary); margin-bottom: 4px;">Leverage</div>
+                    <div style="font-weight: 600;">${data.leverage}x</div>
+                </div>
+                <div>
+                    <div style="color: var(--text-secondary); margin-bottom: 4px;">Confidence</div>
+                    <div style="font-weight: 600;">${(data.confidence * 100).toFixed(0)}%</div>
+                </div>
+                <div>
+                    <div style="color: var(--text-secondary); margin-bottom: 4px;">Created</div>
+                    <div style="font-weight: 600;">${formatTimestamp(decision.created_at)}</div>
+                </div>
+            </div>
+
+            ${data.profit_target ? `
+                <div style="margin-bottom: 12px;">
+                    <div style="color: var(--text-secondary); margin-bottom: 4px;">Profit Target</div>
+                    <div style="font-weight: 600;">$${data.profit_target.toFixed(2)}</div>
+                </div>
+            ` : ''}
+
+            ${data.stop_loss ? `
+                <div style="margin-bottom: 12px;">
+                    <div style="color: var(--text-secondary); margin-bottom: 4px;">Stop Loss</div>
+                    <div style="font-weight: 600;">$${data.stop_loss.toFixed(2)}</div>
+                </div>
+            ` : ''}
+
+            <div style="margin-bottom: 20px;">
+                <h4 style="margin-bottom: 12px;">Justification</h4>
+                <div style="padding: 12px; background: var(--bg-primary); border-radius: 6px;">
+                    ${data.justification || 'No justification provided'}
+                </div>
+            </div>
+
+            ${explanation.decision_summary ? `
+                <div style="margin-bottom: 20px;">
+                    <h4 style="margin-bottom: 12px;">AI Explanation</h4>
+                    <div style="padding: 12px; background: var(--bg-primary); border-radius: 6px;">
+                        ${explanation.decision_summary}
+                    </div>
+                </div>
+            ` : ''}
+
+            ${explanation.market_analysis ? `
+                <div style="margin-bottom: 20px;">
+                    <h4 style="margin-bottom: 12px;">Market Analysis</h4>
+                    <div style="padding: 12px; background: var(--bg-primary); border-radius: 6px; white-space: pre-wrap;">
+                        ${typeof explanation.market_analysis === 'object'
+                            ? JSON.stringify(explanation.market_analysis, null, 2)
+                            : explanation.market_analysis}
+                    </div>
+                </div>
+            ` : ''}
+        `;
+
+        document.getElementById('decisionModal').classList.add('active');
+    } catch (error) {
+        console.error('Failed to load decision detail:', error);
+        showToast('Failed to load decision details', 'error');
+    }
+}
+
+function closeModal() {
+    document.getElementById('decisionModal').classList.remove('active');
+    currentDecisionId = null;
+}
+
+async function approveDecision() {
+    if (!currentDecisionId) return;
+
+    try {
+        const response = await fetch(`/api/pending-decisions/${currentDecisionId}/approve`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ modified: false })
+        });
+
+        const result = await response.json();
+
+        if (result.success || response.ok) {
+            showToast('Decision approved and executed');
+            closeModal();
+            loadPendingDecisions();
+        } else {
+            showToast(result.error || 'Failed to approve decision', 'error');
+        }
+    } catch (error) {
+        console.error('Failed to approve decision:', error);
+        showToast('Failed to approve decision', 'error');
+    }
+}
+
+async function rejectDecision() {
+    if (!currentDecisionId) return;
+
+    const reason = prompt('Reason for rejection (optional):');
+
+    try {
+        const response = await fetch(`/api/pending-decisions/${currentDecisionId}/reject`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reason: reason || 'User rejected' })
+        });
+
+        const result = await response.json();
+
+        if (result.success || response.ok) {
+            showToast('Decision rejected');
+            closeModal();
+            loadPendingDecisions();
+        } else {
+            showToast(result.error || 'Failed to reject decision', 'error');
+        }
+    } catch (error) {
+        console.error('Failed to reject decision:', error);
+        showToast('Failed to reject decision', 'error');
+    }
+}
+
+function modifyDecision() {
+    showToast('Modify feature coming soon', 'info');
+}
+
+// Settings
+async function loadSettings() {
+    try {
+        const response = await fetch(`/api/models/${currentModelId}/settings`);
+        const settings = await response.json();
+
+        document.getElementById('maxPositionSizePct').value = settings.max_position_size_pct || 10.0;
+        document.getElementById('maxDailyLossPct').value = settings.max_daily_loss_pct || 3.0;
+        document.getElementById('maxDailyTrades').value = settings.max_daily_trades || 20;
+        document.getElementById('maxOpenPositions').value = settings.max_open_positions || 5;
+        document.getElementById('minCashReservePct').value = settings.min_cash_reserve_pct || 20.0;
+        document.getElementById('maxDrawdownPct').value = settings.max_drawdown_pct || 15.0;
+        document.getElementById('tradingIntervalMinutes').value = settings.trading_interval_minutes || 60;
+    } catch (error) {
+        console.error('Failed to load settings:', error);
+        showToast('Failed to load settings', 'error');
+    }
+}
+
+async function saveSettings() {
+    try {
+        const settings = {
+            max_position_size_pct: parseFloat(document.getElementById('maxPositionSizePct').value),
+            max_daily_loss_pct: parseFloat(document.getElementById('maxDailyLossPct').value),
+            max_daily_trades: parseInt(document.getElementById('maxDailyTrades').value),
+            max_open_positions: parseInt(document.getElementById('maxOpenPositions').value),
+            min_cash_reserve_pct: parseFloat(document.getElementById('minCashReservePct').value),
+            max_drawdown_pct: parseFloat(document.getElementById('maxDrawdownPct').value),
+            trading_interval_minutes: parseInt(document.getElementById('tradingIntervalMinutes').value)
+        };
+
+        const response = await fetch(`/api/models/${currentModelId}/settings`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(settings)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showToast('Settings saved successfully');
+        } else {
+            showToast(result.error || 'Failed to save settings', 'error');
+        }
+    } catch (error) {
+        console.error('Failed to save settings:', error);
+        showToast('Failed to save settings', 'error');
+    }
+}
+
+// Readiness Assessment
+async function loadReadinessAssessment() {
+    try {
+        const response = await fetch(`/api/models/${currentModelId}/readiness`);
+        const readiness = await response.json();
+
+        document.getElementById('scoreValue').textContent = readiness.score || 0;
+        document.getElementById('scoreMessage').textContent = readiness.message || 'Loading...';
+
+        // Update circle color based on score
+        const circle = document.getElementById('scoreCircle');
+        if (readiness.ready) {
+            circle.style.borderColor = 'var(--color-success)';
+        } else if (readiness.score >= 50) {
+            circle.style.borderColor = 'var(--color-warning)';
+        } else {
+            circle.style.borderColor = 'var(--color-danger)';
+        }
+
+        // Update metrics
+        const metrics = readiness.metrics || {};
+        document.getElementById('metricTotalTrades').textContent = metrics.total_trades || 0;
+        document.getElementById('metricWinRate').textContent = metrics.win_rate ? `${metrics.win_rate.toFixed(1)}%` : '--';
+        document.getElementById('metricApprovalRate').textContent = metrics.approval_rate ? `${metrics.approval_rate.toFixed(1)}%` : '--';
+        document.getElementById('metricModificationRate').textContent = metrics.modification_rate ? `${metrics.modification_rate.toFixed(1)}%` : '--';
+        document.getElementById('metricRiskViolations').textContent = metrics.risk_violations || 0;
+        document.getElementById('metricTotalReturn').textContent = metrics.total_return ? `${metrics.total_return.toFixed(2)}%` : '--';
+        document.getElementById('metricReturnVolatility').textContent = metrics.return_volatility ? `${metrics.return_volatility.toFixed(2)}%` : '--';
+    } catch (error) {
+        console.error('Failed to load readiness assessment:', error);
+        showToast('Failed to load readiness assessment', 'error');
+    }
+}
+
+// Incidents
+async function loadIncidents() {
+    try {
+        const response = await fetch(`/api/models/${currentModelId}/incidents?limit=50`);
+        const incidents = await response.json();
+
+        const container = document.getElementById('incidentsContainer');
+
+        if (incidents.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="bi bi-shield-check"></i>
+                    <p>No incidents</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = incidents.map(incident => `
+            <div class="incident-item severity-${incident.severity}">
+                <div class="incident-header">
+                    <div class="incident-type">${incident.incident_type.replace(/_/g, ' ')}</div>
+                    <div class="incident-time">${formatTimestamp(incident.timestamp)}</div>
+                </div>
+                <div class="incident-message">${incident.message}</div>
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error('Failed to load incidents:', error);
+        showToast('Failed to load incidents', 'error');
+    }
+}
+
+// Actions
+async function executeTradingCycle() {
+    try {
+        showToast('Executing trading cycle...');
+
+        const response = await fetch(`/api/models/${currentModelId}/execute-enhanced`, {
+            method: 'POST'
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showToast('Trading cycle executed');
+            loadPendingDecisions();
+        } else {
+            showToast(result.error || 'Failed to execute trading cycle', 'error');
+        }
+    } catch (error) {
+        console.error('Failed to execute trading cycle:', error);
+        showToast('Failed to execute trading cycle', 'error');
+    }
+}
+
+async function pauseModel() {
+    if (!confirm('Pause this model? (switches to semi-automated mode)')) return;
+
+    try {
+        const response = await fetch(`/api/models/${currentModelId}/pause`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reason: 'User-initiated pause' })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showToast('Model paused');
+            loadTradingMode();
+        } else {
+            showToast(result.message || 'Model already paused');
+        }
+    } catch (error) {
+        console.error('Failed to pause model:', error);
+        showToast('Failed to pause model', 'error');
+    }
+}
+
+async function emergencyStopAll() {
+    if (!confirm('EMERGENCY STOP ALL MODELS? This will switch all models to simulation mode.')) return;
+
+    try {
+        const response = await fetch('/api/emergency-stop-all', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reason: 'User-initiated emergency stop' })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showToast(`Emergency stop: ${result.switched_count} models stopped`);
+            loadTradingMode();
+        } else {
+            showToast('Failed to stop models', 'error');
+        }
+    } catch (error) {
+        console.error('Failed to emergency stop:', error);
+        showToast('Failed to emergency stop', 'error');
+    }
+}
+
+// Toast Notification
+function showToast(message, type = 'info') {
+    const toast = document.getElementById('toast');
+    const toastMessage = document.getElementById('toastMessage');
+
+    toastMessage.textContent = message;
+    toast.classList.add('active');
+
+    setTimeout(() => {
+        toast.classList.remove('active');
+    }, 3000);
+}

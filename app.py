@@ -47,6 +47,10 @@ TRADE_FEE_RATE = 0.001  # 默认交易费率
 def index():
     return render_template('index.html')
 
+@app.route('/enhanced')
+def enhanced():
+    return render_template('enhanced.html')
+
 # ============ Provider API Endpoints ============
 
 @app.route('/api/providers', methods=['GET'])
