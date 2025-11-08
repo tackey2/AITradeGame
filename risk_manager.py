@@ -77,14 +77,21 @@ class RiskManager:
         if not is_valid:
             return False, reason
 
-        # Check 6: Max drawdown (for full auto mode)
-        mode = self.db.get_model_mode(model_id)
-        if mode == 'fully_automated':
+        # Check 6: Max drawdown (for full auto mode only)
+        automation = self.db.get_automation_level(model_id)
+        if automation == 'fully_automated':
             is_valid, reason = self._check_max_drawdown(
                 settings, model_id, model, portfolio
             )
             if not is_valid:
                 return False, reason
+
+        # Check 7: Live trading specific checks
+        environment = self.db.get_trading_environment(model_id)
+        if environment == 'live':
+            # Additional live trading validations can go here
+            # For now, we use the same checks
+            pass
 
         # All checks passed
         return True, "✅ All risk checks passed"

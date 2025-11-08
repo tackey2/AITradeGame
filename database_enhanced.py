@@ -31,8 +31,19 @@ class EnhancedDatabase(Database):
         cursor.execute("PRAGMA table_info(models)")
         columns = [col[1] for col in cursor.fetchall()]
 
+        # NEW ARCHITECTURE: Separate environment from automation
+        if 'trading_environment' not in columns:
+            cursor.execute('ALTER TABLE models ADD COLUMN trading_environment TEXT DEFAULT "simulation"')
+        if 'automation_level' not in columns:
+            cursor.execute('ALTER TABLE models ADD COLUMN automation_level TEXT DEFAULT "manual"')
+        if 'exchange_environment' not in columns:
+            cursor.execute('ALTER TABLE models ADD COLUMN exchange_environment TEXT DEFAULT "testnet"')
+
+        # Legacy column for migration (will be removed later)
         if 'trading_mode' not in columns:
             cursor.execute('ALTER TABLE models ADD COLUMN trading_mode TEXT DEFAULT "simulation"')
+
+        # Other columns
         if 'status' not in columns:
             cursor.execute('ALTER TABLE models ADD COLUMN status TEXT DEFAULT "active"')
         if 'exchange_type' not in columns:
@@ -403,38 +414,147 @@ class EnhancedDatabase(Database):
 
         return results
 
-    # ============ Mode Management ============
+    # ============ Mode Management (NEW ARCHITECTURE) ============
 
-    def get_model_mode(self, model_id: int) -> str:
-        """Get current trading mode for a model"""
+    def get_trading_environment(self, model_id: int) -> str:
+        """Get trading environment (simulation or live)"""
         conn = self.get_connection()
         cursor = conn.cursor()
 
-        cursor.execute('SELECT trading_mode FROM models WHERE id = ?', (model_id,))
+        cursor.execute('SELECT trading_environment FROM models WHERE id = ?', (model_id,))
         row = cursor.fetchone()
         conn.close()
 
-        return row['trading_mode'] if row else 'simulation'
+        return row['trading_environment'] if row else 'simulation'
 
-    def set_model_mode(self, model_id: int, mode: str):
-        """Set trading mode for a model"""
+    def set_trading_environment(self, model_id: int, environment: str):
+        """Set trading environment (simulation or live)"""
+        if environment not in ['simulation', 'live']:
+            raise ValueError(f"Invalid environment: {environment}")
+
         conn = self.get_connection()
         cursor = conn.cursor()
 
         cursor.execute('''
             UPDATE models
-            SET trading_mode = ?
+            SET trading_environment = ?
             WHERE id = ?
-        ''', (mode, model_id))
+        ''', (environment, model_id))
 
         conn.commit()
         conn.close()
 
-        # Log the mode change
+        # Log the environment change
         self.log_incident(
             model_id=model_id,
-            incident_type='MODE_CHANGE',
-            severity='low',
-            message=f'Trading mode changed to {mode}',
-            details={'new_mode': mode}
+            incident_type='ENVIRONMENT_CHANGE',
+            severity='high' if environment == 'live' else 'low',
+            message=f'Trading environment changed to {environment}',
+            details={'new_environment': environment}
         )
+
+    def get_automation_level(self, model_id: int) -> str:
+        """Get automation level (manual, semi_automated, fully_automated)"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT automation_level FROM models WHERE id = ?', (model_id,))
+        row = cursor.fetchone()
+        conn.close()
+
+        return row['automation_level'] if row else 'manual'
+
+    def set_automation_level(self, model_id: int, level: str):
+        """Set automation level (manual, semi_automated, fully_automated)"""
+        if level not in ['manual', 'semi_automated', 'fully_automated']:
+            raise ValueError(f"Invalid automation level: {level}")
+
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            UPDATE models
+            SET automation_level = ?
+            WHERE id = ?
+        ''', (level, model_id))
+
+        conn.commit()
+        conn.close()
+
+        # Log the automation change
+        self.log_incident(
+            model_id=model_id,
+            incident_type='AUTOMATION_CHANGE',
+            severity='medium',
+            message=f'Automation level changed to {level}',
+            details={'new_automation_level': level}
+        )
+
+    def get_exchange_environment(self, model_id: int) -> str:
+        """Get exchange environment (testnet or mainnet)"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT exchange_environment FROM models WHERE id = ?', (model_id,))
+        row = cursor.fetchone()
+        conn.close()
+
+        return row['exchange_environment'] if row else 'testnet'
+
+    def set_exchange_environment(self, model_id: int, exchange_env: str):
+        """Set exchange environment (testnet or mainnet)"""
+        if exchange_env not in ['testnet', 'mainnet']:
+            raise ValueError(f"Invalid exchange environment: {exchange_env}")
+
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            UPDATE models
+            SET exchange_environment = ?
+            WHERE id = ?
+        ''', (exchange_env, model_id))
+
+        conn.commit()
+        conn.close()
+
+        # Log the exchange environment change
+        self.log_incident(
+            model_id=model_id,
+            incident_type='EXCHANGE_ENV_CHANGE',
+            severity='critical' if exchange_env == 'mainnet' else 'medium',
+            message=f'Exchange environment changed to {exchange_env}',
+            details={'new_exchange_environment': exchange_env}
+        )
+
+    # ============ Legacy Mode Management (For Backward Compatibility) ============
+
+    def get_model_mode(self, model_id: int) -> str:
+        """DEPRECATED: Get trading mode (use get_trading_environment + get_automation_level)"""
+        environment = self.get_trading_environment(model_id)
+        automation = self.get_automation_level(model_id)
+
+        # Map to legacy mode
+        if environment == 'simulation':
+            return 'simulation'
+        elif environment == 'live' and automation == 'semi_automated':
+            return 'semi_automated'
+        elif environment == 'live' and automation == 'fully_automated':
+            return 'fully_automated'
+        else:
+            return 'simulation'
+
+    def set_model_mode(self, model_id: int, mode: str):
+        """DEPRECATED: Set trading mode (use set_trading_environment + set_automation_level)"""
+        # Map legacy mode to new architecture
+        if mode == 'simulation':
+            self.set_trading_environment(model_id, 'simulation')
+            self.set_automation_level(model_id, 'manual')
+        elif mode == 'semi_automated':
+            self.set_trading_environment(model_id, 'live')
+            self.set_automation_level(model_id, 'semi_automated')
+        elif mode == 'fully_automated':
+            self.set_trading_environment(model_id, 'live')
+            self.set_automation_level(model_id, 'fully_automated')
+        else:
+            raise ValueError(f"Invalid mode: {mode}")

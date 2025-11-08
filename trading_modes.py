@@ -1,97 +1,135 @@
 """
-Trading Modes System
-Handles execution logic for different trading modes:
-- Simulation: Fake execution for testing
-- Semi-Automated: Real APIs, requires user approval
-- Fully Automated: Real APIs, autonomous execution
+Trading System Architecture - REFACTORED
+Properly separates Trading Environment from Automation Level
+
+Architecture:
+  Environment (Where): Simulation vs Live Trading
+  Automation (How): Manual, Semi-Automated, Fully Automated
+
+This matches the real-world mental model and allows for:
+  - Simulation + Manual (learning)
+  - Simulation + Semi-Auto (practicing approval workflow)
+  - Live + Semi-Auto (real money with approval)
+  - Live + Full-Auto (autonomous trading)
 """
+from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, List
 from datetime import datetime, timedelta
 import json
 
 
-class TradingMode(Enum):
-    """Trading modes"""
-    SIMULATION = "simulation"
-    SEMI_AUTO = "semi_automated"
-    FULL_AUTO = "fully_automated"
+# ============ Enums ============
+
+class TradingEnvironment(Enum):
+    """Where trades are executed"""
+    SIMULATION = "simulation"  # Paper trading, no real money
+    LIVE = "live"              # Real exchange, real money
 
 
-class TradingExecutor:
-    """Unified executor for all trading modes"""
+class AutomationLevel(Enum):
+    """How much control/automation"""
+    MANUAL = "manual"                      # View only, no execution
+    SEMI_AUTOMATED = "semi_automated"      # Execute with approval
+    FULLY_AUTOMATED = "fully_automated"    # Autonomous execution
 
-    def __init__(self, db, exchange, risk_manager, notifier=None, explainer=None):
-        """
-        Args:
-            db: Database instance (EnhancedDatabase)
-            exchange: Exchange interface (BinanceExchange, etc.)
-            risk_manager: RiskManager instance
-            notifier: Notification system (optional)
-            explainer: AI explainability system (optional)
-        """
+
+# ============ Environment Executors ============
+
+class EnvironmentExecutor(ABC):
+    """Abstract base class for environment-specific execution"""
+
+    def __init__(self, db):
         self.db = db
+
+    @abstractmethod
+    def execute_trade(self, model_id: int, coin: str, decision: Dict,
+                     market_data: Dict) -> Dict:
+        """Execute a trade in this environment"""
+        pass
+
+
+class SimulationExecutor(EnvironmentExecutor):
+    """Simulated execution - updates database only, no real API calls"""
+
+    def execute_trade(self, model_id: int, coin: str, decision: Dict,
+                     market_data: Dict) -> Dict:
+        """Simulate trade execution"""
+        from trading_engine import TradingEngine
+        engine = TradingEngine(self.db)
+
+        signal = decision.get('signal')
+        quantity = decision.get('quantity', 0)
+        leverage = decision.get('leverage', 1)
+        current_price = market_data.get('price', 0)
+
+        # Execute in simulation (database only)
+        if signal == 'buy_to_enter':
+            engine._execute_buy(model_id, coin, quantity, current_price, leverage)
+        elif signal == 'sell_to_enter':
+            engine._execute_sell(model_id, coin, quantity, current_price, leverage)
+        elif signal == 'close_position':
+            engine._execute_close(model_id, coin, current_price)
+
+        return {
+            'coin': coin,
+            'signal': signal,
+            'quantity': quantity,
+            'price': current_price,
+            'status': 'simulated',
+            'environment': 'simulation'
+        }
+
+
+class LiveExecutor(EnvironmentExecutor):
+    """Live execution - real exchange API calls"""
+
+    def __init__(self, db, exchange):
+        super().__init__(db)
         self.exchange = exchange
-        self.risk_manager = risk_manager
+
+    def execute_trade(self, model_id: int, coin: str, decision: Dict,
+                     market_data: Dict) -> Dict:
+        """Execute trade on real exchange"""
+        # TODO: Implement real exchange execution
+        # For now, fall back to simulation
+        # In future, this will call self.exchange.place_order(...)
+
+        print(f"[LIVE] Would execute on real exchange: {coin} {decision.get('signal')}")
+
+        # Temporary: use simulation until Binance is integrated
+        sim_executor = SimulationExecutor(self.db)
+        result = sim_executor.execute_trade(model_id, coin, decision, market_data)
+        result['environment'] = 'live'
+        result['status'] = 'simulated_pending_exchange'
+        return result
+
+
+# ============ Automation Handlers ============
+
+class AutomationHandler(ABC):
+    """Abstract base class for automation-specific logic"""
+
+    def __init__(self, db, notifier=None):
+        self.db = db
         self.notifier = notifier
-        self.explainer = explainer
 
-    def execute_trading_cycle(self, model_id: int, market_data: Dict,
-                             ai_decisions: Dict) -> Dict:
-        """
-        Main trading cycle - handles all modes
+    @abstractmethod
+    def process_decisions(self, model_id: int, decisions: Dict, market_data: Dict,
+                         explanations: Dict, risk_manager) -> Dict:
+        """Process AI decisions according to automation level"""
+        pass
 
-        Args:
-            model_id: Model ID
-            market_data: Current market data
-            ai_decisions: AI trading decisions
 
-        Returns:
-            Dict with execution results
-        """
-        # Get model and mode
-        model = self.db.get_model(model_id)
-        mode = TradingMode(self.db.get_model_mode(model_id))
+class ManualHandler(AutomationHandler):
+    """Manual mode - display only, no execution"""
 
-        print(f"[{mode.value.upper()}] Executing trading cycle for model {model['name']}")
-
-        # Get portfolio
-        portfolio = self.db.get_portfolio(model_id, market_data)
-
-        # Generate explanations for all decisions
-        explanations = {}
-        if self.explainer:
-            for coin, decision in ai_decisions.items():
-                explanations[coin] = self.explainer.create_explanation(
-                    coin=coin,
-                    decision=decision,
-                    market_data=market_data.get(coin, {}),
-                    portfolio=portfolio
-                )
-
-        # Log AI conversation
-        self.db.add_conversation(
-            model_id=model_id,
-            user_prompt="Market analysis request",
-            ai_response=json.dumps(ai_decisions)
-        )
-
-        # Mode-specific execution
-        if mode == TradingMode.SIMULATION:
-            return self._execute_simulation(model_id, ai_decisions, market_data, explanations)
-
-        elif mode == TradingMode.SEMI_AUTO:
-            return self._request_approvals(model_id, ai_decisions, market_data, explanations)
-
-        elif mode == TradingMode.FULL_AUTO:
-            return self._execute_fully_auto(model_id, ai_decisions, market_data, explanations)
-
-    def _execute_simulation(self, model_id: int, decisions: Dict,
-                           market_data: Dict, explanations: Dict) -> Dict:
-        """Execute in simulation mode (fake execution)"""
+    def process_decisions(self, model_id: int, decisions: Dict, market_data: Dict,
+                         explanations: Dict, risk_manager) -> Dict:
+        """Display decisions but don't execute"""
         results = {
-            'mode': 'simulation',
-            'executed': [],
+            'automation': 'manual',
+            'displayed': [],
             'skipped': []
         }
 
@@ -102,7 +140,7 @@ class TradingExecutor:
                 continue
 
             # Validate with risk manager
-            is_valid, reason = self.risk_manager.validate_trade(
+            is_valid, reason = risk_manager.validate_trade(
                 model_id=model_id,
                 coin=coin,
                 decision=decision,
@@ -112,21 +150,31 @@ class TradingExecutor:
             if not is_valid:
                 results['skipped'].append({
                     'coin': coin,
-                    'reason': reason
+                    'reason': reason,
+                    'decision': decision
                 })
                 continue
 
-            # Simulate execution (no real API call)
-            trade_result = self._simulate_trade(model_id, coin, decision, market_data[coin])
-            results['executed'].append(trade_result)
+            # Display decision (don't execute)
+            results['displayed'].append({
+                'coin': coin,
+                'signal': signal,
+                'decision': decision,
+                'explanation': explanations.get(coin, {}),
+                'action': 'displayed_only'
+            })
 
         return results
 
-    def _request_approvals(self, model_id: int, decisions: Dict,
-                          market_data: Dict, explanations: Dict) -> Dict:
-        """Request user approval for each decision (semi-auto mode)"""
+
+class SemiAutomatedHandler(AutomationHandler):
+    """Semi-automated mode - create pending decisions for approval"""
+
+    def process_decisions(self, model_id: int, decisions: Dict, market_data: Dict,
+                         explanations: Dict, risk_manager) -> Dict:
+        """Create pending decisions for user approval"""
         results = {
-            'mode': 'semi_automated',
+            'automation': 'semi_automated',
             'pending': [],
             'skipped': []
         }
@@ -138,7 +186,7 @@ class TradingExecutor:
                 continue
 
             # Validate with risk manager
-            is_valid, reason = self.risk_manager.validate_trade(
+            is_valid, reason = risk_manager.validate_trade(
                 model_id=model_id,
                 coin=coin,
                 decision=decision,
@@ -179,44 +227,35 @@ class TradingExecutor:
 
         return results
 
-    def _execute_fully_auto(self, model_id: int, decisions: Dict,
-                           market_data: Dict, explanations: Dict) -> Dict:
-        """Execute automatically without approval (full-auto mode)"""
+
+class FullyAutomatedHandler(AutomationHandler):
+    """Fully automated mode - execute automatically after risk checks"""
+
+    def __init__(self, db, notifier=None, auto_pause_checker=None):
+        super().__init__(db, notifier)
+        self.auto_pause_checker = auto_pause_checker
+
+    def process_decisions(self, model_id: int, decisions: Dict, market_data: Dict,
+                         explanations: Dict, risk_manager) -> Dict:
+        """Auto-execute after risk validation"""
         results = {
-            'mode': 'fully_automated',
-            'executed': [],
+            'automation': 'fully_automated',
+            'auto_approved': [],
             'skipped': []
         }
 
         # Check auto-pause triggers first
-        should_pause, pause_reason = self._check_auto_pause_triggers(model_id)
-        if should_pause:
-            # Pause full auto, switch to semi-auto
-            self.db.set_model_mode(model_id, TradingMode.SEMI_AUTO.value)
+        if self.auto_pause_checker:
+            should_pause, pause_reason = self.auto_pause_checker(model_id)
+            if should_pause:
+                # Return special result indicating pause needed
+                return {
+                    'automation': 'paused',
+                    'reason': pause_reason,
+                    'auto_approved': [],
+                    'skipped': []
+                }
 
-            self.db.log_incident(
-                model_id=model_id,
-                incident_type='AUTO_PAUSE',
-                severity='high',
-                message=f'Full auto paused: {pause_reason}'
-            )
-
-            if self.notifier:
-                self.notifier.send_notification(
-                    title="🚨 FULL AUTO PAUSED",
-                    message=f"Switched to semi-auto: {pause_reason}",
-                    priority="critical",
-                    model_id=model_id
-                )
-
-            return {
-                'mode': 'paused',
-                'reason': pause_reason,
-                'executed': [],
-                'skipped': []
-            }
-
-        # Execute trades
         for coin, decision in decisions.items():
             signal = decision.get('signal', 'hold')
 
@@ -224,7 +263,7 @@ class TradingExecutor:
                 continue
 
             # Validate with risk manager
-            is_valid, reason = self.risk_manager.validate_trade(
+            is_valid, reason = risk_manager.validate_trade(
                 model_id=model_id,
                 coin=coin,
                 decision=decision,
@@ -246,29 +285,163 @@ class TradingExecutor:
                 )
                 continue
 
-            # Execute trade
+            # Auto-approve
+            results['auto_approved'].append({
+                'coin': coin,
+                'signal': signal,
+                'decision': decision
+            })
+
+        return results
+
+
+# ============ Unified Trading Executor ============
+
+class TradingExecutor:
+    """
+    Unified trading executor using composition
+
+    Separates concerns:
+      - Environment Executor: Where to execute (Sim vs Live)
+      - Automation Handler: How to process (Manual/Semi/Full)
+      - Risk Manager: What's safe to execute
+    """
+
+    def __init__(self, db, risk_manager, notifier=None, explainer=None, exchange=None):
+        """
+        Args:
+            db: EnhancedDatabase instance
+            risk_manager: RiskManager instance
+            notifier: Notifier instance (optional)
+            explainer: AIExplainer instance (optional)
+            exchange: Exchange interface (optional, for live trading)
+        """
+        self.db = db
+        self.risk_manager = risk_manager
+        self.notifier = notifier
+        self.explainer = explainer
+
+        # Environment executors
+        self.executors = {
+            TradingEnvironment.SIMULATION: SimulationExecutor(db),
+            TradingEnvironment.LIVE: LiveExecutor(db, exchange)
+        }
+
+        # Automation handlers
+        self.handlers = {
+            AutomationLevel.MANUAL: ManualHandler(db, notifier),
+            AutomationLevel.SEMI_AUTOMATED: SemiAutomatedHandler(db, notifier),
+            AutomationLevel.FULLY_AUTOMATED: FullyAutomatedHandler(
+                db, notifier, auto_pause_checker=self._check_auto_pause_triggers
+            )
+        }
+
+    def execute_trading_cycle(self, model_id: int, market_data: Dict,
+                             ai_decisions: Dict) -> Dict:
+        """
+        Main trading cycle - mode-aware execution
+
+        Args:
+            model_id: Model ID
+            market_data: Current market data
+            ai_decisions: AI trading decisions
+
+        Returns:
+            Execution results
+        """
+        # Get environment and automation level
+        environment = TradingEnvironment(self.db.get_trading_environment(model_id))
+        automation = AutomationLevel(self.db.get_automation_level(model_id))
+
+        model = self.db.get_model(model_id)
+        print(f"[{environment.value.upper()}|{automation.value.upper()}] Trading cycle for {model['name']}")
+
+        # Get portfolio
+        portfolio = self.db.get_portfolio(model_id, market_data)
+
+        # Generate explanations
+        explanations = {}
+        if self.explainer:
+            for coin, decision in ai_decisions.items():
+                explanations[coin] = self.explainer.create_explanation(
+                    coin=coin,
+                    decision=decision,
+                    market_data=market_data.get(coin, {}),
+                    portfolio=portfolio
+                )
+
+        # Log AI conversation
+        self.db.add_conversation(
+            model_id=model_id,
+            user_prompt="Market analysis request",
+            ai_response=json.dumps(ai_decisions)
+        )
+
+        # STEP 1: Automation layer processes decisions
+        automation_handler = self.handlers[automation]
+        processed = automation_handler.process_decisions(
+            model_id=model_id,
+            decisions=ai_decisions,
+            market_data=market_data,
+            explanations=explanations,
+            risk_manager=self.risk_manager
+        )
+
+        # Handle auto-pause
+        if processed.get('automation') == 'paused':
+            # Pause full auto, switch to semi-auto
+            self.db.set_automation_level(model_id, AutomationLevel.SEMI_AUTOMATED.value)
+
+            self.db.log_incident(
+                model_id=model_id,
+                incident_type='AUTO_PAUSE',
+                severity='high',
+                message=f'Full auto paused: {processed["reason"]}'
+            )
+
+            if self.notifier:
+                self.notifier.send_notification(
+                    title="🚨 FULL AUTO PAUSED",
+                    message=f'Switched to semi-auto: {processed["reason"]}',
+                    priority="critical",
+                    model_id=model_id
+                )
+
+            return processed
+
+        # STEP 2: Environment layer executes approved decisions
+        environment_executor = self.executors[environment]
+        executed_trades = []
+
+        # Execute auto-approved trades (full auto) or displayed trades (manual)
+        trades_to_execute = processed.get('auto_approved', [])
+
+        for trade_info in trades_to_execute:
+            coin = trade_info['coin']
+            decision = trade_info['decision']
+
             try:
-                trade_result = self._execute_trade_live(
+                result = environment_executor.execute_trade(
                     model_id=model_id,
                     coin=coin,
                     decision=decision,
                     market_data=market_data[coin]
                 )
 
-                results['executed'].append(trade_result)
+                executed_trades.append(result)
 
-                # Send informational notification
-                if self.notifier:
+                # Send notification
+                if self.notifier and automation == AutomationLevel.FULLY_AUTOMATED:
                     self.notifier.send_notification(
                         title=f"✅ Trade Executed: {coin}",
-                        message=f"{signal.upper()} {decision.get('quantity')} @ ${market_data[coin]['price']}",
+                        message=f"{decision.get('signal').upper()} {decision.get('quantity')} @ ${market_data[coin]['price']}",
                         priority="low",
                         model_id=model_id
                     )
 
             except Exception as e:
                 error_msg = f"Execution failed: {str(e)}"
-                results['skipped'].append({
+                processed.setdefault('skipped', []).append({
                     'coin': coin,
                     'reason': error_msg
                 })
@@ -280,29 +453,19 @@ class TradingExecutor:
                     message=f'Failed to execute {coin}: {str(e)}'
                 )
 
-                if self.notifier:
-                    self.notifier.send_notification(
-                        title=f"❌ Trade Failed: {coin}",
-                        message=error_msg,
-                        priority="high",
-                        model_id=model_id
-                    )
+        # Combine results
+        final_result = {
+            'environment': environment.value,
+            'automation': automation.value,
+            'executed': executed_trades,
+            **processed  # Include pending, skipped, etc.
+        }
 
-        return results
+        return final_result
 
     def approve_decision(self, decision_id: int, modified: bool = False,
                         modifications: Dict = None) -> Dict:
-        """
-        Approve a pending decision (semi-auto mode)
-
-        Args:
-            decision_id: Pending decision ID
-            modified: Whether user modified the decision
-            modifications: Modified parameters if any
-
-        Returns:
-            Execution result
-        """
+        """Approve a pending decision (semi-auto workflow)"""
         # Get pending decision
         decisions = self.db.get_pending_decisions(model_id=None, status='pending')
         decision_data = next((d for d in decisions if d['id'] == decision_id), None)
@@ -319,7 +482,7 @@ class TradingExecutor:
         coin = decision_data['coin']
         decision = decision_data['decision_data']
 
-        # Apply modifications if any
+        # Apply modifications
         if modified and modifications:
             decision.update(modifications)
             self.db.update_pending_decision(
@@ -335,13 +498,16 @@ class TradingExecutor:
         market_fetcher = MarketDataFetcher()
         market_data = market_fetcher.get_current_prices([coin])
 
-        # Execute the trade
+        # Execute using appropriate environment executor
+        environment = TradingEnvironment(self.db.get_trading_environment(model_id))
+        executor = self.executors[environment]
+
         try:
-            result = self._execute_trade_live(model_id, coin, decision, market_data[coin])
+            result = executor.execute_trade(model_id, coin, decision, market_data[coin])
 
             # Log approval event
-            self.db.conn = self.db.get_connection()
-            cursor = self.db.conn.cursor()
+            conn = self.db.get_connection()
+            cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO approval_events
                 (decision_id, model_id, approved, modified, modification_details, execution_result)
@@ -349,8 +515,8 @@ class TradingExecutor:
             ''', (decision_id, model_id, True, modified,
                   json.dumps(modifications) if modifications else None,
                   json.dumps(result)))
-            self.db.conn.commit()
-            self.db.conn.close()
+            conn.commit()
+            conn.close()
 
             return {'success': True, 'result': result}
 
@@ -358,14 +524,15 @@ class TradingExecutor:
             error_msg = f"Execution failed: {str(e)}"
 
             # Log error
-            cursor = self.db.conn.cursor()
+            conn = self.db.get_connection()
+            cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO approval_events
                 (decision_id, model_id, approved, modified, execution_result)
                 VALUES (?, ?, ?, ?, ?)
             ''', (decision_id, model_id, True, modified, json.dumps({'error': error_msg})))
-            self.db.conn.commit()
-            self.db.conn.close()
+            conn.commit()
+            conn.close()
 
             return {'success': False, 'error': error_msg}
 
@@ -382,61 +549,20 @@ class TradingExecutor:
         decision_data = next((d for d in decisions if d['id'] == decision_id), None)
 
         if decision_data:
-            cursor = self.db.conn = self.db.get_connection()
-            cursor = self.db.conn.cursor()
+            conn = self.db.get_connection()
+            cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO approval_events
                 (decision_id, model_id, approved, rejection_reason)
                 VALUES (?, ?, ?, ?)
             ''', (decision_id, decision_data['model_id'], False, reason))
-            self.db.conn.commit()
-            self.db.conn.close()
+            conn.commit()
+            conn.close()
 
         return {'success': True}
 
-    def _simulate_trade(self, model_id: int, coin: str, decision: Dict,
-                       market_data: Dict) -> Dict:
-        """Simulate trade execution (no real API)"""
-        # Use existing trading engine logic
-        from trading_engine import TradingEngine
-        engine = TradingEngine(self.db)
-
-        # Execute the signal
-        signal = decision.get('signal')
-        quantity = decision.get('quantity', 0)
-        leverage = decision.get('leverage', 1)
-
-        current_price = market_data.get('price', 0)
-
-        if signal == 'buy_to_enter':
-            engine._execute_buy(model_id, coin, quantity, current_price, leverage)
-        elif signal == 'sell_to_enter':
-            engine._execute_sell(model_id, coin, quantity, current_price, leverage)
-        elif signal == 'close_position':
-            engine._execute_close(model_id, coin, current_price)
-
-        return {
-            'coin': coin,
-            'signal': signal,
-            'quantity': quantity,
-            'price': current_price,
-            'status': 'simulated'
-        }
-
-    def _execute_trade_live(self, model_id: int, coin: str, decision: Dict,
-                           market_data: Dict) -> Dict:
-        """Execute trade on real exchange"""
-        # TODO: Implement real exchange execution
-        # For now, use simulation
-        return self._simulate_trade(model_id, coin, decision, market_data)
-
     def _check_auto_pause_triggers(self, model_id: int) -> Tuple[bool, str]:
-        """
-        Check if any auto-pause triggers are hit
-
-        Returns:
-            (should_pause, reason)
-        """
+        """Check if any auto-pause triggers are hit (for full auto)"""
         settings = self.db.get_model_settings(model_id)
 
         if not settings.get('auto_pause_enabled', True):
@@ -464,7 +590,7 @@ class TradingExecutor:
             if win_rate < threshold:
                 return True, f"Win rate dropped to {win_rate:.1f}% (threshold: {threshold}%)"
 
-        # Trigger 3: Daily loss limit (checked in risk manager, but double-check here)
+        # Trigger 3: Daily loss limit
         portfolio = self.db.get_portfolio(model_id)
         model = self.db.get_model(model_id)
         initial_capital = model['initial_capital']

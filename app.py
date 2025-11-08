@@ -595,6 +595,77 @@ def set_trading_mode(model_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# -------- Environment & Automation Management (NEW ARCHITECTURE) --------
+
+@app.route('/api/models/<int:model_id>/environment', methods=['GET'])
+def get_trading_environment(model_id):
+    """Get trading environment (simulation or live)"""
+    try:
+        environment = enhanced_db.get_trading_environment(model_id)
+        return jsonify({'environment': environment})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/environment', methods=['POST'])
+def set_trading_environment(model_id):
+    """Set trading environment (simulation or live)"""
+    try:
+        data = request.json
+        environment = data.get('environment')
+
+        if environment not in ['simulation', 'live']:
+            return jsonify({'error': 'Invalid environment. Must be "simulation" or "live"'}), 400
+
+        enhanced_db.set_trading_environment(model_id, environment)
+
+        return jsonify({
+            'success': True,
+            'environment': environment
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/automation', methods=['GET'])
+def get_automation_level(model_id):
+    """Get automation level (manual, semi_automated, fully_automated)"""
+    try:
+        automation = enhanced_db.get_automation_level(model_id)
+        return jsonify({'automation': automation})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/automation', methods=['POST'])
+def set_automation_level(model_id):
+    """Set automation level (manual, semi_automated, fully_automated)"""
+    try:
+        data = request.json
+        automation = data.get('automation')
+
+        if automation not in ['manual', 'semi_automated', 'fully_automated']:
+            return jsonify({'error': 'Invalid automation level'}), 400
+
+        enhanced_db.set_automation_level(model_id, automation)
+
+        return jsonify({
+            'success': True,
+            'automation': automation
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/config', methods=['GET'])
+def get_model_config(model_id):
+    """Get complete model configuration (environment + automation + exchange)"""
+    try:
+        config = {
+            'environment': enhanced_db.get_trading_environment(model_id),
+            'automation': enhanced_db.get_automation_level(model_id),
+            'exchange_environment': enhanced_db.get_exchange_environment(model_id)
+        }
+        return jsonify(config)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 # -------- Model Settings Management --------
 
 @app.route('/api/models/<int:model_id>/settings', methods=['GET'])
