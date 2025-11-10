@@ -1,0 +1,8 @@
+7 UI interface examples generated using Google Stitch.
+1. Dashboard (Home Screen): An at-a-glance view of trading models' performance, recent trades, and system status, serving as the primary navigation hub.
+2. Trading Control Panel: An active trading interface for managing current positions, reviewing pending decisions in semi-automated mode, and executing manual trades.
+3. AI Explainability View: A detailed breakdown explaining the rationale behind specific AI trading decisions, designed to be educational and transparent.
+4. Trade Journal: A historical log of all trades with auto-generated analysis, learning notes, and performance tracking features.
+5. Settings & Configuration: A comprehensive interface for configuring all trading parameters, risk limits, system settings, and AI configurations.
+6. Readiness Assessment Dashboard: An advisory dashboard presenting objective data to help users decide their readiness to switch from Semi-Auto to Full-Auto trading mode.
+7. Performance Analytics: Detailed performance attribution, showing which trading patterns, assets, and time periods are most profitable.

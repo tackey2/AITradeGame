@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>UI Debug Test</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .success { color: green; }
+        .error { color: red; }
+        button { padding: 10px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Enhanced UI Debug Test</h1>
+
+    <div class="section">
+        <h2>1. API Endpoint Tests</h2>
+        <button onclick="testGetConfig()">Test GET /api/models/1/config</button>
+        <button onclick="testSetEnvironment()">Test SET Environment</button>
+        <button onclick="testSetAutomation()">Test SET Automation</button>
+        <pre id="apiResult"></pre>
+    </div>
+
+    <div class="section">
+        <h2>2. Environment Radio Test</h2>
+        <input type="radio" name="environment" id="envSim" value="simulation" checked>
+        <label for="envSim">Simulation</label>
+        <br>
+        <input type="radio" name="environment" id="envLive" value="live">
+        <label for="envLive">Live</label>
+        <p id="envResult"></p>
+    </div>
+
+    <div class="section">
+        <h2>3. Modal Test</h2>
+        <button onclick="showTestModal()">Show Modal</button>
+        <p id="modalResult"></p>
+    </div>
+
+    <!-- Test Modal -->
+    <div id="testModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);">
+        <div style="background: white; margin: 100px auto; padding: 20px; width: 400px;">
+            <h3>Test Modal</h3>
+            <p>If you see this, the modal is working!</p>
+            <button onclick="hideTestModal()">Close</button>
+        </div>
+    </div>
+
+    <script>
+        // Test 1: API Endpoints
+        async function testGetConfig() {
+            const result = document.getElementById('apiResult');
+            try {
+                result.textContent = 'Testing...';
+                const response = await fetch('/api/models/1/config');
+                const data = await response.json();
+                result.textContent = 'SUCCESS:\n' + JSON.stringify(data, null, 2);
+                result.className = 'success';
+            } catch (error) {
+                result.textContent = 'ERROR:\n' + error.message;
+                result.className = 'error';
+            }
+        }
+
+        async function testSetEnvironment() {
+            const result = document.getElementById('apiResult');
+            try {
+                result.textContent = 'Testing SET environment to live...';
+                const response = await fetch('/api/models/1/environment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ environment: 'live' })
+                });
+                const data = await response.json();
+                result.textContent = 'SUCCESS:\n' + JSON.stringify(data, null, 2);
+                result.className = 'success';
+            } catch (error) {
+                result.textContent = 'ERROR:\n' + error.message;
+                result.className = 'error';
+            }
+        }
+
+        async function testSetAutomation() {
+            const result = document.getElementById('apiResult');
+            try {
+                result.textContent = 'Testing SET automation to semi_automated...';
+                const response = await fetch('/api/models/1/automation', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ automation: 'semi_automated' })
+                });
+                const data = await response.json();
+                result.textContent = 'SUCCESS:\n' + JSON.stringify(data, null, 2);
+                result.className = 'success';
+            } catch (error) {
+                result.textContent = 'ERROR:\n' + error.message;
+                result.className = 'error';
+            }
+        }
+
+        // Test 2: Radio Buttons
+        document.querySelectorAll('input[name="environment"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                const result = document.getElementById('envResult');
+                result.textContent = 'Changed to: ' + e.target.value;
+                result.className = 'success';
+
+                if (e.target.value === 'live') {
+                    alert('This should trigger the Live warning modal!');
+                }
+            });
+        });
+
+        // Test 3: Modal
+        function showTestModal() {
+            document.getElementById('testModal').style.display = 'block';
+            document.getElementById('modalResult').textContent = 'Modal shown!';
+            document.getElementById('modalResult').className = 'success';
+        }
+
+        function hideTestModal() {
+            document.getElementById('testModal').style.display = 'none';
+        }
+
+        console.log('Debug test page loaded successfully');
+    </script>
+</body>
+</html>

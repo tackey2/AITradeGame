@@ -11,18 +11,50 @@ from ai_trader import AITrader
 from database import Database
 from version import __version__, __github_owner__, __repo__, GITHUB_REPO_URL, LATEST_RELEASE_URL
 
+# NEW - Enhanced system imports
+from database_enhanced import EnhancedDatabase
+from trading_modes import TradingExecutor
+from risk_manager import RiskManager
+from notifier import Notifier
+from explainer import AIExplainer
+
 app = Flask(__name__)
 CORS(app)
 
+# Initialize databases (keep both for backward compatibility)
 db = Database('AITradeGame.db')
+enhanced_db = EnhancedDatabase('AITradeGame.db')
+
+# Initialize enhanced database schema
+enhanced_db.init_db()
+
+# Market data fetcher
 market_fetcher = MarketDataFetcher()
+
+# Trading engines (original system)
 trading_engines = {}
+
+# NEW - Enhanced system components
+risk_managers = {}  # model_id -> RiskManager
+notifiers = {}  # model_id -> Notifier
+explainers = {}  # model_id -> AIExplainer
+trading_executors = {}  # model_id -> TradingExecutor
+
 auto_trading = True
 TRADE_FEE_RATE = 0.001  # 默认交易费率
 
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/enhanced')
+def enhanced():
+    return render_template('enhanced.html')
+
+@app.route('/test_ui_debug.html')
+def test_ui_debug():
+    with open('test_ui_debug.html', 'r') as f:
+        return f.read()
 
 # ============ Provider API Endpoints ============
 
@@ -499,6 +531,643 @@ def compare_versions(version1, version2):
         return -1
     else:
         return 0
+
+# ============ ENHANCED SYSTEM API ENDPOINTS ============
+
+# Helper function to initialize enhanced components for a model
+def init_enhanced_components(model_id):
+    """Initialize risk manager, notifier, explainer, and executor for a model"""
+    if model_id not in risk_managers:
+        risk_managers[model_id] = RiskManager(enhanced_db)
+
+    if model_id not in notifiers:
+        notifiers[model_id] = Notifier(enhanced_db)
+
+    if model_id not in explainers:
+        # Get model to access AI configuration
+        model = enhanced_db.get_model(model_id)
+        provider = enhanced_db.get_provider(model['provider_id'])
+
+        ai_trader = AITrader(
+            api_key=provider['api_key'],
+            api_url=provider['api_url'],
+            model_name=model['model_name']
+        )
+        explainers[model_id] = AIExplainer(ai_trader)
+
+    if model_id not in trading_executors:
+        # Create executor with all components
+        trading_executors[model_id] = TradingExecutor(
+            db=enhanced_db,
+            exchange=None,  # TODO: Add exchange integration later
+            risk_manager=risk_managers[model_id],
+            notifier=notifiers[model_id],
+            explainer=explainers[model_id]
+        )
+
+# -------- Trading Mode Management --------
+
+@app.route('/api/models/<int:model_id>/mode', methods=['GET'])
+def get_trading_mode(model_id):
+    """Get current trading mode for a model"""
+    try:
+        mode = enhanced_db.get_model_mode(model_id)
+        return jsonify({'mode': mode})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/mode', methods=['POST'])
+def set_trading_mode(model_id):
+    """Set trading mode for a model"""
+    try:
+        data = request.json
+        mode = data.get('mode')
+
+        if mode not in ['simulation', 'semi_automated', 'fully_automated']:
+            return jsonify({'error': 'Invalid mode'}), 400
+
+        enhanced_db.set_model_mode(model_id, mode)
+
+        # Log incident
+        enhanced_db.log_incident(
+            model_id=model_id,
+            incident_type='MODE_CHANGE',
+            severity='low',
+            message=f'Trading mode changed to {mode}'
+        )
+
+        return jsonify({'success': True, 'mode': mode})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# -------- Environment & Automation Management (NEW ARCHITECTURE) --------
+
+@app.route('/api/models/<int:model_id>/environment', methods=['GET'])
+def get_trading_environment(model_id):
+    """Get trading environment (simulation or live)"""
+    try:
+        environment = enhanced_db.get_trading_environment(model_id)
+        return jsonify({'environment': environment})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/environment', methods=['POST'])
+def set_trading_environment(model_id):
+    """Set trading environment (simulation or live)"""
+    try:
+        data = request.json
+        environment = data.get('environment')
+
+        if environment not in ['simulation', 'live']:
+            return jsonify({'error': 'Invalid environment. Must be "simulation" or "live"'}), 400
+
+        enhanced_db.set_trading_environment(model_id, environment)
+
+        return jsonify({
+            'success': True,
+            'environment': environment
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/automation', methods=['GET'])
+def get_automation_level(model_id):
+    """Get automation level (manual, semi_automated, fully_automated)"""
+    try:
+        automation = enhanced_db.get_automation_level(model_id)
+        return jsonify({'automation': automation})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/automation', methods=['POST'])
+def set_automation_level(model_id):
+    """Set automation level (manual, semi_automated, fully_automated)"""
+    try:
+        data = request.json
+        automation = data.get('automation')
+
+        if automation not in ['manual', 'semi_automated', 'fully_automated']:
+            return jsonify({'error': 'Invalid automation level'}), 400
+
+        enhanced_db.set_automation_level(model_id, automation)
+
+        return jsonify({
+            'success': True,
+            'automation': automation
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/config', methods=['GET'])
+def get_model_config(model_id):
+    """Get complete model configuration (environment + automation + exchange)"""
+    try:
+        config = {
+            'environment': enhanced_db.get_trading_environment(model_id),
+            'automation': enhanced_db.get_automation_level(model_id),
+            'exchange_environment': enhanced_db.get_exchange_environment(model_id)
+        }
+        return jsonify(config)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# -------- Model Settings Management --------
+
+@app.route('/api/models/<int:model_id>/settings', methods=['GET'])
+def get_model_settings(model_id):
+    """Get all settings for a model"""
+    try:
+        settings = enhanced_db.get_model_settings(model_id)
+        return jsonify(settings)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/settings', methods=['POST'])
+def update_model_settings(model_id):
+    """Update model settings"""
+    try:
+        data = request.json
+
+        # Initialize settings if not exists
+        enhanced_db.init_model_settings(model_id)
+
+        # Update settings
+        enhanced_db.update_model_settings(model_id, data)
+
+        # Log changes
+        for key, value in data.items():
+            enhanced_db.conn = enhanced_db.get_connection()
+            cursor = enhanced_db.conn.cursor()
+            cursor.execute('''
+                INSERT INTO setting_changes (model_id, setting_key, new_value)
+                VALUES (?, ?, ?)
+            ''', (model_id, key, str(value)))
+            enhanced_db.conn.commit()
+            enhanced_db.conn.close()
+
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# -------- Pending Decisions (Semi-Auto Workflow) --------
+
+@app.route('/api/pending-decisions', methods=['GET'])
+def get_all_pending_decisions():
+    """Get all pending decisions across all models"""
+    try:
+        model_id = request.args.get('model_id', type=int)
+
+        if model_id:
+            decisions = enhanced_db.get_pending_decisions(model_id, status='pending')
+        else:
+            # Get all pending decisions
+            conn = enhanced_db.get_connection()
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT * FROM pending_decisions
+                WHERE status = 'pending'
+                ORDER BY created_at DESC
+            ''')
+            rows = cursor.fetchall()
+            conn.close()
+
+            decisions = []
+            for row in rows:
+                data = dict(row)
+                data['decision_data'] = json.loads(data['decision_data'])
+                if data['explanation_data']:
+                    data['explanation_data'] = json.loads(data['explanation_data'])
+                decisions.append(data)
+
+        return jsonify(decisions)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/pending-decisions/<int:decision_id>/approve', methods=['POST'])
+def approve_pending_decision(decision_id):
+    """Approve a pending decision"""
+    try:
+        data = request.json or {}
+        modified = data.get('modified', False)
+        modifications = data.get('modifications', None)
+
+        # Initialize components if needed
+        decisions = enhanced_db.get_pending_decisions(model_id=None, status='pending')
+        decision = next((d for d in decisions if d['id'] == decision_id), None)
+
+        if not decision:
+            return jsonify({'error': 'Decision not found'}), 404
+
+        model_id = decision['model_id']
+        init_enhanced_components(model_id)
+
+        # Execute approval
+        result = trading_executors[model_id].approve_decision(
+            decision_id=decision_id,
+            modified=modified,
+            modifications=modifications
+        )
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/pending-decisions/<int:decision_id>/reject', methods=['POST'])
+def reject_pending_decision(decision_id):
+    """Reject a pending decision"""
+    try:
+        data = request.json or {}
+        reason = data.get('reason', 'User rejected')
+
+        # Initialize components if needed
+        decisions = enhanced_db.get_pending_decisions(model_id=None, status='pending')
+        decision = next((d for d in decisions if d['id'] == decision_id), None)
+
+        if not decision:
+            return jsonify({'error': 'Decision not found'}), 404
+
+        model_id = decision['model_id']
+        init_enhanced_components(model_id)
+
+        # Execute rejection
+        result = trading_executors[model_id].reject_decision(
+            decision_id=decision_id,
+            reason=reason
+        )
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# -------- Risk Status --------
+
+@app.route('/api/models/<int:model_id>/risk-status', methods=['GET'])
+def get_risk_status(model_id):
+    """Get current risk status for a model"""
+    try:
+        init_enhanced_components(model_id)
+
+        # Get portfolio
+        prices_data = market_fetcher.get_current_prices(['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE'])
+        portfolio = enhanced_db.get_portfolio(model_id, prices_data)
+
+        # Get settings
+        settings = enhanced_db.get_model_settings(model_id)
+        model = enhanced_db.get_model(model_id)
+
+        # Calculate risk metrics
+        total_value = portfolio['total_value']
+        initial_capital = model['initial_capital']
+
+        # Position size usage
+        position_value = portfolio['positions_value']
+        max_position_size = total_value * (settings.get('max_position_size_pct', 10.0) / 100)
+        position_usage = (position_value / max_position_size * 100) if max_position_size > 0 else 0
+
+        # Daily loss
+        daily_loss_pct = ((total_value - initial_capital) / initial_capital * 100)
+        max_daily_loss = settings.get('max_daily_loss_pct', 3.0)
+
+        # Open positions
+        open_positions = len(portfolio['positions'])
+        max_open_positions = settings.get('max_open_positions', 5)
+
+        # Cash reserve
+        cash_reserve_pct = (portfolio['cash'] / total_value * 100) if total_value > 0 else 0
+        min_cash_reserve = settings.get('min_cash_reserve_pct', 20.0)
+
+        # Recent trades
+        recent_trades = enhanced_db.get_trades(model_id, limit=10)
+        trades_today = len([t for t in recent_trades if t['timestamp'].startswith(datetime.now().strftime('%Y-%m-%d'))])
+        max_daily_trades = settings.get('max_daily_trades', 20)
+
+        risk_status = {
+            'position_size': {
+                'current': position_value,
+                'max': max_position_size,
+                'usage_pct': position_usage,
+                'status': 'ok' if position_usage < 80 else 'warning' if position_usage < 100 else 'critical'
+            },
+            'daily_loss': {
+                'current_pct': daily_loss_pct,
+                'max_pct': max_daily_loss,
+                'status': 'ok' if daily_loss_pct > -max_daily_loss else 'critical'
+            },
+            'open_positions': {
+                'current': open_positions,
+                'max': max_open_positions,
+                'status': 'ok' if open_positions < max_open_positions else 'critical'
+            },
+            'cash_reserve': {
+                'current_pct': cash_reserve_pct,
+                'min_pct': min_cash_reserve,
+                'status': 'ok' if cash_reserve_pct >= min_cash_reserve else 'warning'
+            },
+            'daily_trades': {
+                'current': trades_today,
+                'max': max_daily_trades,
+                'status': 'ok' if trades_today < max_daily_trades else 'critical'
+            }
+        }
+
+        return jsonify(risk_status)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# -------- Readiness Assessment --------
+
+@app.route('/api/models/<int:model_id>/readiness', methods=['GET'])
+def get_readiness_assessment(model_id):
+    """Get readiness assessment for switching to full auto"""
+    try:
+        # Get recent trades
+        trades = enhanced_db.get_trades(model_id, limit=50)
+
+        if len(trades) < 10:
+            return jsonify({
+                'ready': False,
+                'score': 0,
+                'message': 'Need at least 10 trades for assessment',
+                'metrics': {}
+            })
+
+        # Calculate metrics
+        wins = sum(1 for t in trades if t['pnl'] > 0)
+        total = len(trades)
+        win_rate = (wins / total * 100) if total > 0 else 0
+
+        # Get approval data (for semi-auto)
+        conn = enhanced_db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT COUNT(*) as total,
+                   SUM(CASE WHEN approved = 1 THEN 1 ELSE 0 END) as approved,
+                   SUM(CASE WHEN modified = 1 THEN 1 ELSE 0 END) as modified
+            FROM approval_events
+            WHERE model_id = ?
+        ''', (model_id,))
+        approval_data = dict(cursor.fetchone())
+        conn.close()
+
+        approval_rate = (approval_data['approved'] / approval_data['total'] * 100) if approval_data['total'] > 0 else 0
+        modification_rate = (approval_data['modified'] / approval_data['total'] * 100) if approval_data['total'] > 0 else 0
+
+        # Get risk violations
+        cursor = conn = enhanced_db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT COUNT(*) as count
+            FROM incidents
+            WHERE model_id = ? AND incident_type = 'TRADE_REJECTED'
+        ''', (model_id,))
+        risk_violations = dict(cursor.fetchone())['count']
+        conn.close()
+
+        # Calculate returns
+        model = enhanced_db.get_model(model_id)
+        prices_data = market_fetcher.get_current_prices(['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE'])
+        portfolio = enhanced_db.get_portfolio(model_id, prices_data)
+        total_return = ((portfolio['total_value'] - model['initial_capital']) / model['initial_capital'] * 100)
+
+        # Calculate return volatility (std dev of returns)
+        returns = [t['pnl'] / model['initial_capital'] * 100 for t in trades[:20]]
+        if len(returns) > 1:
+            mean_return = sum(returns) / len(returns)
+            variance = sum((r - mean_return) ** 2 for r in returns) / len(returns)
+            return_volatility = variance ** 0.5
+        else:
+            return_volatility = 0
+
+        # Scoring criteria
+        score = 0
+        max_score = 100
+
+        # 1. Win rate (30 points)
+        if win_rate >= 55:
+            score += 30
+        elif win_rate >= 50:
+            score += 20
+        elif win_rate >= 45:
+            score += 10
+
+        # 2. Approval rate (20 points)
+        if approval_rate >= 90:
+            score += 20
+        elif approval_rate >= 80:
+            score += 15
+        elif approval_rate >= 70:
+            score += 10
+
+        # 3. Modification rate (lower is better, 15 points)
+        if modification_rate <= 5:
+            score += 15
+        elif modification_rate <= 10:
+            score += 10
+        elif modification_rate <= 20:
+            score += 5
+
+        # 4. Risk violations (lower is better, 15 points)
+        if risk_violations == 0:
+            score += 15
+        elif risk_violations <= 3:
+            score += 10
+        elif risk_violations <= 5:
+            score += 5
+
+        # 5. Total return (10 points)
+        if total_return >= 5:
+            score += 10
+        elif total_return >= 2:
+            score += 5
+        elif total_return >= 0:
+            score += 2
+
+        # 6. Return volatility (lower is better, 10 points)
+        if return_volatility <= 2:
+            score += 10
+        elif return_volatility <= 4:
+            score += 5
+        elif return_volatility <= 6:
+            score += 2
+
+        # Ready if score >= 70
+        ready = score >= 70
+
+        metrics = {
+            'total_trades': total,
+            'win_rate': win_rate,
+            'approval_rate': approval_rate,
+            'modification_rate': modification_rate,
+            'risk_violations': risk_violations,
+            'total_return': total_return,
+            'return_volatility': return_volatility
+        }
+
+        # Generate recommendation
+        if ready:
+            message = "✅ Ready for Full Automation"
+        elif score >= 50:
+            message = "⚠️ Approaching Readiness - Continue monitoring"
+        else:
+            message = "❌ Not Ready - More learning needed"
+
+        return jsonify({
+            'ready': ready,
+            'score': score,
+            'max_score': max_score,
+            'message': message,
+            'metrics': metrics
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# -------- Incidents Log --------
+
+@app.route('/api/models/<int:model_id>/incidents', methods=['GET'])
+def get_model_incidents(model_id):
+    """Get incidents log for a model"""
+    try:
+        limit = request.args.get('limit', 50, type=int)
+        incidents = enhanced_db.get_recent_incidents(model_id=model_id, limit=limit)
+        return jsonify(incidents)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/incidents', methods=['GET'])
+def get_all_incidents():
+    """Get all incidents across all models"""
+    try:
+        limit = request.args.get('limit', 100, type=int)
+        incidents = enhanced_db.get_recent_incidents(model_id=None, limit=limit)
+        return jsonify(incidents)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# -------- Emergency Controls --------
+
+@app.route('/api/models/<int:model_id>/pause', methods=['POST'])
+def pause_model(model_id):
+    """Emergency pause - switch to semi-auto mode"""
+    try:
+        data = request.json or {}
+        reason = data.get('reason', 'User-initiated emergency pause')
+
+        # Get current mode
+        current_mode = enhanced_db.get_model_mode(model_id)
+
+        if current_mode == 'fully_automated':
+            # Switch to semi-auto
+            enhanced_db.set_model_mode(model_id, 'semi_automated')
+
+            # Log incident
+            enhanced_db.log_incident(
+                model_id=model_id,
+                incident_type='EMERGENCY_PAUSE',
+                severity='high',
+                message=reason
+            )
+
+            return jsonify({
+                'success': True,
+                'previous_mode': current_mode,
+                'new_mode': 'semi_automated',
+                'message': 'Model paused successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': f'Model is already in {current_mode} mode'
+            })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/emergency-stop-all', methods=['POST'])
+def emergency_stop_all():
+    """Emergency stop ALL models - switch all to simulation"""
+    try:
+        data = request.json or {}
+        reason = data.get('reason', 'User-initiated emergency stop for all models')
+
+        models = enhanced_db.get_all_models()
+        switched = []
+
+        for model in models:
+            model_id = model['id']
+            current_mode = enhanced_db.get_model_mode(model_id)
+
+            if current_mode != 'simulation':
+                enhanced_db.set_model_mode(model_id, 'simulation')
+
+                enhanced_db.log_incident(
+                    model_id=model_id,
+                    incident_type='EMERGENCY_STOP_ALL',
+                    severity='critical',
+                    message=reason
+                )
+
+                switched.append({
+                    'model_id': model_id,
+                    'model_name': model['name'],
+                    'previous_mode': current_mode
+                })
+
+        return jsonify({
+            'success': True,
+            'switched_count': len(switched),
+            'switched_models': switched,
+            'message': f'All {len(switched)} models switched to simulation mode'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# -------- Enhanced Trading Execution --------
+
+@app.route('/api/models/<int:model_id>/execute-enhanced', methods=['POST'])
+def execute_enhanced_trading(model_id):
+    """Execute trading cycle with enhanced system (mode-aware)"""
+    try:
+        # Initialize components
+        init_enhanced_components(model_id)
+
+        # Get market data
+        coins = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE']
+        market_data = market_fetcher.get_current_prices(coins)
+
+        # Get AI decisions
+        model = enhanced_db.get_model(model_id)
+        provider = enhanced_db.get_provider(model['provider_id'])
+
+        ai_trader = AITrader(
+            api_key=provider['api_key'],
+            api_url=provider['api_url'],
+            model_name=model['model_name']
+        )
+
+        # Get portfolio and account info
+        portfolio = enhanced_db.get_portfolio(model_id, market_data)
+        account_info = {
+            'initial_capital': model['initial_capital'],
+            'total_return': ((portfolio['total_value'] - model['initial_capital']) / model['initial_capital'] * 100)
+        }
+
+        # Get AI decisions
+        ai_decisions = ai_trader.make_decision(market_data, portfolio, account_info)
+
+        # Execute with trading executor (mode-aware)
+        result = trading_executors[model_id].execute_trading_cycle(
+            model_id=model_id,
+            market_data=market_data,
+            ai_decisions=ai_decisions
+        )
+
+        return jsonify({
+            'success': True,
+            'result': result
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 def init_trading_engines():
     try:
