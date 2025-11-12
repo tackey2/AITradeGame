@@ -9,7 +9,15 @@ Welcome to the AITradeGame documentation! This directory contains all guides and
 ### 👥 For Users
 Start here if you're using AITradeGame:
 
-- **[Exchange Setup Guide](user/EXCHANGE_SETUP_GUIDE.md)** ⭐ **START HERE**
+- **[Enhanced UI Complete Guide](user/ENHANCED_UI_COMPLETE_GUIDE.md)** ⭐⭐⭐ **START HERE - COMPLETE SETUP GUIDE**
+  - **ONE-STOP GUIDE for everything you need**
+  - Configure AI Providers (OpenRouter, OpenAI, etc.)
+  - Create and manage trading models
+  - Set up exchange credentials
+  - Complete workflow from zero to trading
+  - **No need for Classic UI anymore!**
+
+- **[Exchange Setup Guide](user/EXCHANGE_SETUP_GUIDE.md)** 📊 **EXCHANGE-SPECIFIC DETAILS**
   - Complete walkthrough for setting up Binance exchange integration
   - Step-by-step instructions with screenshots descriptions
   - Troubleshooting guide included
@@ -18,9 +26,9 @@ Start here if you're using AITradeGame:
   - Installation guide for Windows users
   - Python setup and dependencies
 
-- **[Enhanced UI Guide](user/ENHANCED_UI_GUIDE.md)**
-  - How to use the Enhanced Dashboard
-  - Features and navigation
+- **[Enhanced UI Guide](user/ENHANCED_UI_GUIDE.md)** (Legacy)
+  - How to use the Enhanced Dashboard (older version)
+  - See Complete Guide above for latest features
 
 ### 👨‍💻 For Developers
 Start here if you're contributing to the project:

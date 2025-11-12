@@ -79,6 +79,22 @@ def add_provider():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/providers/<int:provider_id>', methods=['PUT'])
+def update_provider(provider_id):
+    """Update API provider"""
+    data = request.json
+    try:
+        db.update_provider(
+            provider_id=provider_id,
+            name=data['name'],
+            api_url=data['api_url'],
+            api_key=data['api_key'],
+            models=data.get('models', '')
+        )
+        return jsonify({'message': 'Provider updated successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/providers/<int:provider_id>', methods=['DELETE'])
 def delete_provider(provider_id):
     """Delete API provider"""
@@ -178,16 +194,50 @@ def add_model():
         print(f"[ERROR] Failed to add model: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/models/<int:model_id>', methods=['PUT'])
+def update_model(model_id):
+    """Update model information"""
+    data = request.json
+    try:
+        db.update_model(
+            model_id=model_id,
+            name=data.get('name'),
+            provider_id=data.get('provider_id'),
+            model_name=data.get('model_name'),
+            initial_capital=data.get('initial_capital')
+        )
+
+        # If model is in trading_engines and provider/model_name changed, reinitialize
+        if model_id in trading_engines and (data.get('provider_id') or data.get('model_name')):
+            model = db.get_model(model_id)
+            trading_engines[model_id] = TradingEngine(
+                model_id=model_id,
+                db=db,
+                market_fetcher=market_fetcher,
+                ai_trader=AITrader(
+                    api_key=model['api_key'],
+                    api_url=model['api_url'],
+                    model_name=model['model_name']
+                ),
+                trade_fee_rate=TRADE_FEE_RATE
+            )
+            print(f"[INFO] Model {model_id} ({model['name']}) reinitialized")
+
+        return jsonify({'message': 'Model updated successfully'})
+    except Exception as e:
+        print(f"[ERROR] Update model {model_id} failed: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/models/<int:model_id>', methods=['DELETE'])
 def delete_model(model_id):
     try:
         model = db.get_model(model_id)
         model_name = model['name'] if model else f"ID-{model_id}"
-        
+
         db.delete_model(model_id)
         if model_id in trading_engines:
             del trading_engines[model_id]
-        
+
         print(f"[INFO] Model {model_id} ({model_name}) deleted")
         return jsonify({'message': 'Model deleted successfully'})
     except Exception as e:

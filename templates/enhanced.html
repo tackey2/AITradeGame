@@ -196,6 +196,22 @@
                 </div>
             </div>
 
+            <!-- Trending Market Data -->
+            <div class="section">
+                <div class="section-header">
+                    <h2>Trending Cryptocurrencies</h2>
+                    <button class="btn-icon" id="refreshTrendingBtn" title="Refresh">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </div>
+                <div class="trending-grid" id="trendingGrid">
+                    <div class="empty-state">
+                        <i class="bi bi-graph-up"></i>
+                        <p>Loading market data...</p>
+                    </div>
+                </div>
+            </div>
+
             <!-- Quick Actions -->
             <div class="section">
                 <div class="section-header">
@@ -216,6 +232,54 @@
 
         <!-- Page: Settings -->
         <div class="page" id="settingsPage">
+            <!-- AI Provider Configuration -->
+            <div class="section">
+                <div class="section-header">
+                    <h2>AI Provider Configuration</h2>
+                    <span class="help-icon" title="Configure AI providers (OpenRouter, OpenAI, etc.) for making trading decisions">
+                        <i class="bi bi-question-circle"></i>
+                    </span>
+                </div>
+
+                <!-- Provider List -->
+                <div class="provider-list" id="providerList">
+                    <div class="empty-state">
+                        <i class="bi bi-robot"></i>
+                        <p>No AI providers configured. Add one to get started.</p>
+                    </div>
+                </div>
+
+                <!-- Add Provider Button -->
+                <button class="btn-primary" id="addProviderBtn">
+                    <i class="bi bi-plus-circle"></i>
+                    Add AI Provider
+                </button>
+            </div>
+
+            <!-- Model Configuration -->
+            <div class="section">
+                <div class="section-header">
+                    <h2>Trading Models</h2>
+                    <span class="help-icon" title="Create and configure trading models. Each model uses an AI provider to make decisions.">
+                        <i class="bi bi-question-circle"></i>
+                    </span>
+                </div>
+
+                <!-- Model List -->
+                <div class="model-list-config" id="modelListConfig">
+                    <div class="empty-state">
+                        <i class="bi bi-cpu"></i>
+                        <p>No models configured. Add an AI provider first, then create a model.</p>
+                    </div>
+                </div>
+
+                <!-- Add Model Button -->
+                <button class="btn-primary" id="addModelBtn">
+                    <i class="bi bi-plus-circle"></i>
+                    Create New Model
+                </button>
+            </div>
+
             <div class="section">
                 <div class="section-header">
                     <h2>Risk Management Settings</h2>
@@ -607,6 +671,152 @@
                 <button class="btn-success" id="approveDecisionBtn">
                     <i class="bi bi-check-circle"></i>
                     Approve
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Provider Modal -->
+    <div class="modal" id="providerModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>
+                    <i class="bi bi-robot"></i>
+                    <span id="providerModalTitle">Add AI Provider</span>
+                </h3>
+                <button class="btn-close" id="closeProviderModal">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="providerForm">
+                    <input type="hidden" id="providerIdField">
+
+                    <div class="form-group">
+                        <label>Provider Name *</label>
+                        <input type="text" id="providerName" class="form-input" placeholder="e.g., OpenRouter, OpenAI" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>
+                            API URL *
+                            <span class="help-icon" title="Base URL for API (e.g., https://openrouter.ai/api/v1 or https://api.openai.com/v1)">
+                                <i class="bi bi-question-circle"></i>
+                            </span>
+                        </label>
+                        <input type="url" id="providerApiUrl" class="form-input" placeholder="https://api.example.com/v1" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>
+                            API Key *
+                            <span class="help-icon" title="Your API key from the provider">
+                                <i class="bi bi-question-circle"></i>
+                            </span>
+                        </label>
+                        <div class="input-with-toggle">
+                            <input type="password" id="providerApiKey" class="form-input" placeholder="sk-..." required>
+                            <button type="button" class="toggle-visibility" data-target="providerApiKey" title="Show/Hide">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>
+                            Available Models (comma-separated)
+                            <span class="help-icon" title="Optional: List of model IDs available from this provider">
+                                <i class="bi bi-question-circle"></i>
+                            </span>
+                        </label>
+                        <textarea id="providerModels" class="form-input" rows="3" placeholder="e.g., gpt-4-turbo,gpt-4,anthropic/claude-3.5-sonnet"></textarea>
+                    </div>
+                </form>
+
+                <div class="info-box" style="margin-top: 16px;">
+                    <i class="bi bi-info-circle"></i>
+                    <div>
+                        <strong>Quick Setup:</strong><br>
+                        <strong>OpenRouter:</strong> URL: <code>https://openrouter.ai/api/v1</code><br>
+                        <strong>OpenAI:</strong> URL: <code>https://api.openai.com/v1</code>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" id="cancelProviderBtn">
+                    <i class="bi bi-x-circle"></i>
+                    Cancel
+                </button>
+                <button type="button" class="btn-primary" id="saveProviderBtn">
+                    <i class="bi bi-save"></i>
+                    Save Provider
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Model Modal -->
+    <div class="modal" id="modelModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>
+                    <i class="bi bi-cpu"></i>
+                    <span id="modelModalTitle">Create Trading Model</span>
+                </h3>
+                <button class="btn-close" id="closeModelModal">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="modelForm">
+                    <input type="hidden" id="modelIdField">
+
+                    <div class="form-group">
+                        <label>Model Name *</label>
+                        <input type="text" id="modelName" class="form-input" placeholder="e.g., Conservative Strategy" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>
+                            AI Provider *
+                            <span class="help-icon" title="Select which AI provider this model will use">
+                                <i class="bi bi-question-circle"></i>
+                            </span>
+                        </label>
+                        <select id="modelProvider" class="form-select" required>
+                            <option value="">Select a provider...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>
+                            AI Model *
+                            <span class="help-icon" title="Select which AI model to use (e.g., gpt-4, claude-3.5-sonnet)">
+                                <i class="bi bi-question-circle"></i>
+                            </span>
+                        </label>
+                        <input type="text" id="modelAiModel" class="form-input" placeholder="e.g., gpt-4-turbo, anthropic/claude-3.5-sonnet" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>
+                            Initial Capital
+                            <span class="help-icon" title="Starting capital for this model (simulation only)">
+                                <i class="bi bi-question-circle"></i>
+                            </span>
+                        </label>
+                        <input type="number" id="modelCapital" class="form-input" value="100000" min="1000" step="1000" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" id="cancelModelBtn">
+                    <i class="bi bi-x-circle"></i>
+                    Cancel
+                </button>
+                <button type="button" class="btn-primary" id="saveModelBtn">
+                    <i class="bi bi-save"></i>
+                    Save Model
                 </button>
             </div>
         </div>
