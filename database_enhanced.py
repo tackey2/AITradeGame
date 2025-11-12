@@ -210,6 +210,68 @@ class EnhancedDatabase(Database):
             )
         ''')
 
+        # ============ Risk Profiles Table ============
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS risk_profiles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL,
+                description TEXT,
+                color TEXT,
+                icon TEXT,
+                is_system_preset BOOLEAN DEFAULT 0,
+                created_by INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_active BOOLEAN DEFAULT 1,
+
+                -- Risk parameters
+                max_position_size_pct REAL NOT NULL,
+                max_open_positions INTEGER NOT NULL,
+                min_cash_reserve_pct REAL NOT NULL,
+                max_daily_loss_pct REAL NOT NULL,
+                max_drawdown_pct REAL NOT NULL,
+                max_daily_trades INTEGER NOT NULL,
+                trading_interval_minutes INTEGER NOT NULL,
+                auto_pause_consecutive_losses INTEGER NOT NULL,
+                auto_pause_win_rate_threshold REAL NOT NULL,
+                auto_pause_volatility_multiplier REAL NOT NULL,
+                trading_fee_rate REAL NOT NULL,
+
+                -- AI settings
+                ai_temperature REAL DEFAULT 0.7,
+                ai_strategy TEXT DEFAULT 'day_trading_mean_reversion'
+            )
+        ''')
+
+        # ============ Profile Sessions Table ============
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS profile_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                model_id INTEGER NOT NULL,
+                profile_id INTEGER NOT NULL,
+                profile_name TEXT NOT NULL,
+                started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                ended_at TIMESTAMP,
+                trades_executed INTEGER DEFAULT 0,
+                winning_trades INTEGER DEFAULT 0,
+                losing_trades INTEGER DEFAULT 0,
+                total_pnl REAL DEFAULT 0,
+                total_pnl_pct REAL DEFAULT 0,
+                win_rate REAL DEFAULT 0,
+                max_drawdown_pct REAL DEFAULT 0,
+                avg_profit_per_trade REAL DEFAULT 0,
+                sharpe_ratio REAL,
+
+                FOREIGN KEY (model_id) REFERENCES models(id) ON DELETE CASCADE,
+                FOREIGN KEY (profile_id) REFERENCES risk_profiles(id) ON DELETE SET NULL
+            )
+        ''')
+
+        # Add active_profile_id column to model_settings if not exists
+        cursor.execute("PRAGMA table_info(model_settings)")
+        settings_columns = [col[1] for col in cursor.fetchall()]
+        if 'active_profile_id' not in settings_columns:
+            cursor.execute('ALTER TABLE model_settings ADD COLUMN active_profile_id INTEGER REFERENCES risk_profiles(id)')
+
         conn.commit()
         conn.close()
 
@@ -761,3 +823,455 @@ class EnhancedDatabase(Database):
                 message=f'Failed to create exchange client: {str(e)}'
             )
             return None
+
+    # ============ Risk Profiles Management ============
+
+    def init_system_risk_profiles(self):
+        """Initialize the 5 system risk profile presets"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        system_profiles = [
+            {
+                'name': 'Ultra-Safe',
+                'description': 'Minimal risk, focus on capital preservation',
+                'color': '#10b981',
+                'icon': '🛡️',
+                'max_position_size_pct': 5.0,
+                'max_open_positions': 3,
+                'min_cash_reserve_pct': 40.0,
+                'max_daily_loss_pct': 1.0,
+                'max_drawdown_pct': 5.0,
+                'max_daily_trades': 5,
+                'trading_interval_minutes': 120,
+                'auto_pause_consecutive_losses': 3,
+                'auto_pause_win_rate_threshold': 50.0,
+                'auto_pause_volatility_multiplier': 2.0,
+                'trading_fee_rate': 0.1,
+                'ai_temperature': 0.5,
+                'ai_strategy': 'day_trading_mean_reversion'
+            },
+            {
+                'name': 'Conservative',
+                'description': 'Low risk, steady growth focus',
+                'color': '#3b82f6',
+                'icon': '📊',
+                'max_position_size_pct': 8.0,
+                'max_open_positions': 4,
+                'min_cash_reserve_pct': 30.0,
+                'max_daily_loss_pct': 2.0,
+                'max_drawdown_pct': 10.0,
+                'max_daily_trades': 10,
+                'trading_interval_minutes': 90,
+                'auto_pause_consecutive_losses': 4,
+                'auto_pause_win_rate_threshold': 45.0,
+                'auto_pause_volatility_multiplier': 2.5,
+                'trading_fee_rate': 0.1,
+                'ai_temperature': 0.6,
+                'ai_strategy': 'day_trading_mean_reversion'
+            },
+            {
+                'name': 'Balanced',
+                'description': 'Moderate risk-reward balance',
+                'color': '#f59e0b',
+                'icon': '⚖️',
+                'max_position_size_pct': 10.0,
+                'max_open_positions': 5,
+                'min_cash_reserve_pct': 20.0,
+                'max_daily_loss_pct': 3.0,
+                'max_drawdown_pct': 15.0,
+                'max_daily_trades': 20,
+                'trading_interval_minutes': 60,
+                'auto_pause_consecutive_losses': 5,
+                'auto_pause_win_rate_threshold': 40.0,
+                'auto_pause_volatility_multiplier': 3.0,
+                'trading_fee_rate': 0.1,
+                'ai_temperature': 0.7,
+                'ai_strategy': 'day_trading_mean_reversion'
+            },
+            {
+                'name': 'Aggressive',
+                'description': 'Higher risk for maximum growth potential',
+                'color': '#ef4444',
+                'icon': '🚀',
+                'max_position_size_pct': 15.0,
+                'max_open_positions': 8,
+                'min_cash_reserve_pct': 10.0,
+                'max_daily_loss_pct': 5.0,
+                'max_drawdown_pct': 25.0,
+                'max_daily_trades': 40,
+                'trading_interval_minutes': 30,
+                'auto_pause_consecutive_losses': 7,
+                'auto_pause_win_rate_threshold': 35.0,
+                'auto_pause_volatility_multiplier': 4.0,
+                'trading_fee_rate': 0.1,
+                'ai_temperature': 0.8,
+                'ai_strategy': 'day_trading_mean_reversion'
+            },
+            {
+                'name': 'Scalper',
+                'description': 'High-frequency trading, small profits per trade',
+                'color': '#8b5cf6',
+                'icon': '⚡',
+                'max_position_size_pct': 12.0,
+                'max_open_positions': 10,
+                'min_cash_reserve_pct': 15.0,
+                'max_daily_loss_pct': 4.0,
+                'max_drawdown_pct': 20.0,
+                'max_daily_trades': 100,
+                'trading_interval_minutes': 15,
+                'auto_pause_consecutive_losses': 8,
+                'auto_pause_win_rate_threshold': 38.0,
+                'auto_pause_volatility_multiplier': 3.5,
+                'trading_fee_rate': 0.1,
+                'ai_temperature': 0.75,
+                'ai_strategy': 'day_trading_mean_reversion'
+            }
+        ]
+
+        for profile in system_profiles:
+            cursor.execute('''
+                INSERT OR IGNORE INTO risk_profiles
+                (name, description, color, icon, is_system_preset,
+                 max_position_size_pct, max_open_positions, min_cash_reserve_pct,
+                 max_daily_loss_pct, max_drawdown_pct, max_daily_trades,
+                 trading_interval_minutes, auto_pause_consecutive_losses,
+                 auto_pause_win_rate_threshold, auto_pause_volatility_multiplier,
+                 trading_fee_rate, ai_temperature, ai_strategy)
+                VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                profile['name'], profile['description'], profile['color'], profile['icon'],
+                profile['max_position_size_pct'], profile['max_open_positions'],
+                profile['min_cash_reserve_pct'], profile['max_daily_loss_pct'],
+                profile['max_drawdown_pct'], profile['max_daily_trades'],
+                profile['trading_interval_minutes'], profile['auto_pause_consecutive_losses'],
+                profile['auto_pause_win_rate_threshold'], profile['auto_pause_volatility_multiplier'],
+                profile['trading_fee_rate'], profile['ai_temperature'], profile['ai_strategy']
+            ))
+
+        conn.commit()
+        conn.close()
+        print("✅ System risk profiles initialized")
+
+    def get_all_risk_profiles(self, include_inactive: bool = False) -> List[Dict]:
+        """Get all risk profiles (system and custom)"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        if include_inactive:
+            cursor.execute('SELECT * FROM risk_profiles ORDER BY is_system_preset DESC, name')
+        else:
+            cursor.execute('SELECT * FROM risk_profiles WHERE is_active = 1 ORDER BY is_system_preset DESC, name')
+
+        rows = cursor.fetchall()
+        conn.close()
+
+        return [dict(row) for row in rows]
+
+    def get_risk_profile(self, profile_id: int) -> Optional[Dict]:
+        """Get a specific risk profile by ID"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT * FROM risk_profiles WHERE id = ?', (profile_id,))
+        row = cursor.fetchone()
+        conn.close()
+
+        return dict(row) if row else None
+
+    def get_risk_profile_by_name(self, name: str) -> Optional[Dict]:
+        """Get a specific risk profile by name"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT * FROM risk_profiles WHERE name = ?', (name,))
+        row = cursor.fetchone()
+        conn.close()
+
+        return dict(row) if row else None
+
+    def create_custom_risk_profile(self, name: str, description: str, parameters: Dict,
+                                   color: str = '#64748b', icon: str = '⭐') -> int:
+        """Create a custom risk profile"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            INSERT INTO risk_profiles
+            (name, description, color, icon, is_system_preset,
+             max_position_size_pct, max_open_positions, min_cash_reserve_pct,
+             max_daily_loss_pct, max_drawdown_pct, max_daily_trades,
+             trading_interval_minutes, auto_pause_consecutive_losses,
+             auto_pause_win_rate_threshold, auto_pause_volatility_multiplier,
+             trading_fee_rate, ai_temperature, ai_strategy)
+            VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            name, description, color, icon,
+            parameters['max_position_size_pct'], parameters['max_open_positions'],
+            parameters['min_cash_reserve_pct'], parameters['max_daily_loss_pct'],
+            parameters['max_drawdown_pct'], parameters['max_daily_trades'],
+            parameters['trading_interval_minutes'], parameters['auto_pause_consecutive_losses'],
+            parameters['auto_pause_win_rate_threshold'], parameters['auto_pause_volatility_multiplier'],
+            parameters.get('trading_fee_rate', 0.1),
+            parameters.get('ai_temperature', 0.7),
+            parameters.get('ai_strategy', 'day_trading_mean_reversion')
+        ))
+
+        profile_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+
+        return profile_id
+
+    def update_risk_profile(self, profile_id: int, parameters: Dict):
+        """Update a risk profile (custom profiles only)"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        # Check if it's a system preset
+        cursor.execute('SELECT is_system_preset FROM risk_profiles WHERE id = ?', (profile_id,))
+        row = cursor.fetchone()
+
+        if row and row['is_system_preset']:
+            conn.close()
+            raise ValueError("Cannot modify system preset profiles")
+
+        # Build dynamic UPDATE query
+        fields = []
+        values = []
+
+        for key, value in parameters.items():
+            if key in ['id', 'created_at', 'is_system_preset', 'created_by']:
+                continue
+
+            fields.append(f"{key} = ?")
+            values.append(value)
+
+        if not fields:
+            conn.close()
+            return
+
+        values.append(profile_id)
+
+        query = f'''
+            UPDATE risk_profiles
+            SET {', '.join(fields)}
+            WHERE id = ?
+        '''
+
+        cursor.execute(query, values)
+        conn.commit()
+        conn.close()
+
+    def delete_risk_profile(self, profile_id: int):
+        """Delete a custom risk profile"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        # Check if it's a system preset
+        cursor.execute('SELECT is_system_preset FROM risk_profiles WHERE id = ?', (profile_id,))
+        row = cursor.fetchone()
+
+        if row and row['is_system_preset']:
+            conn.close()
+            raise ValueError("Cannot delete system preset profiles")
+
+        # Soft delete by marking inactive
+        cursor.execute('UPDATE risk_profiles SET is_active = 0 WHERE id = ?', (profile_id,))
+
+        conn.commit()
+        conn.close()
+
+    def apply_risk_profile(self, model_id: int, profile_id: int):
+        """Apply a risk profile to a model"""
+        profile = self.get_risk_profile(profile_id)
+        if not profile:
+            raise ValueError(f"Profile {profile_id} not found")
+
+        # End current profile session if any
+        self._end_current_profile_session(model_id)
+
+        # Update model settings with profile parameters
+        settings = {
+            'max_position_size_pct': profile['max_position_size_pct'],
+            'max_open_positions': profile['max_open_positions'],
+            'min_cash_reserve_pct': profile['min_cash_reserve_pct'],
+            'max_daily_loss_pct': profile['max_daily_loss_pct'],
+            'max_drawdown_pct': profile['max_drawdown_pct'],
+            'max_daily_trades': profile['max_daily_trades'],
+            'trading_interval_minutes': profile['trading_interval_minutes'],
+            'auto_pause_consecutive_losses': profile['auto_pause_consecutive_losses'],
+            'auto_pause_win_rate_threshold': profile['auto_pause_win_rate_threshold'],
+            'auto_pause_volatility_multiplier': profile['auto_pause_volatility_multiplier'],
+            'trading_fee_rate': profile['trading_fee_rate'],
+            'ai_temperature': profile['ai_temperature'],
+            'ai_strategy': profile['ai_strategy'],
+            'active_profile_id': profile_id
+        }
+
+        self.update_model_settings(model_id, settings)
+
+        # Start new profile session
+        self._start_profile_session(model_id, profile_id, profile['name'])
+
+        # Log the profile change
+        self.log_incident(
+            model_id=model_id,
+            incident_type='PROFILE_CHANGE',
+            severity='medium',
+            message=f'Risk profile changed to: {profile["name"]}',
+            details={'profile_id': profile_id, 'profile_name': profile['name']}
+        )
+
+    def _start_profile_session(self, model_id: int, profile_id: int, profile_name: str):
+        """Start a new profile session"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            INSERT INTO profile_sessions (model_id, profile_id, profile_name)
+            VALUES (?, ?, ?)
+        ''', (model_id, profile_id, profile_name))
+
+        conn.commit()
+        conn.close()
+
+    def _end_current_profile_session(self, model_id: int):
+        """End the current profile session and calculate metrics"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        # Find active session
+        cursor.execute('''
+            SELECT id, profile_id, started_at FROM profile_sessions
+            WHERE model_id = ? AND ended_at IS NULL
+            ORDER BY started_at DESC LIMIT 1
+        ''', (model_id,))
+
+        session = cursor.fetchone()
+        if not session:
+            conn.close()
+            return
+
+        session_id = session['id']
+        started_at = session['started_at']
+
+        # Calculate metrics from trades in this session
+        cursor.execute('''
+            SELECT
+                COUNT(*) as total_trades,
+                SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as winning_trades,
+                SUM(CASE WHEN pnl <= 0 THEN 1 ELSE 0 END) as losing_trades,
+                SUM(pnl) as total_pnl,
+                AVG(pnl) as avg_profit_per_trade
+            FROM trades
+            WHERE model_id = ? AND timestamp >= ?
+        ''', (model_id, started_at))
+
+        metrics = cursor.fetchone()
+
+        total_trades = metrics['total_trades'] or 0
+        winning_trades = metrics['winning_trades'] or 0
+        losing_trades = metrics['losing_trades'] or 0
+        total_pnl = metrics['total_pnl'] or 0
+        avg_profit_per_trade = metrics['avg_profit_per_trade'] or 0
+        win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
+
+        # Get portfolio value at start
+        cursor.execute('''
+            SELECT portfolio_value FROM portfolio_history
+            WHERE model_id = ? AND timestamp >= ?
+            ORDER BY timestamp ASC LIMIT 1
+        ''', (model_id, started_at))
+
+        start_row = cursor.fetchone()
+        start_value = start_row['portfolio_value'] if start_row else 10000
+
+        total_pnl_pct = (total_pnl / start_value * 100) if start_value > 0 else 0
+
+        # Calculate max drawdown during session
+        cursor.execute('''
+            SELECT MIN(portfolio_value) as min_value, MAX(portfolio_value) as peak_value
+            FROM portfolio_history
+            WHERE model_id = ? AND timestamp >= ?
+        ''', (model_id, started_at))
+
+        dd_row = cursor.fetchone()
+        if dd_row and dd_row['peak_value']:
+            max_drawdown_pct = ((dd_row['min_value'] - dd_row['peak_value']) / dd_row['peak_value'] * 100)
+        else:
+            max_drawdown_pct = 0
+
+        # Update session with metrics
+        cursor.execute('''
+            UPDATE profile_sessions
+            SET ended_at = CURRENT_TIMESTAMP,
+                trades_executed = ?,
+                winning_trades = ?,
+                losing_trades = ?,
+                total_pnl = ?,
+                total_pnl_pct = ?,
+                win_rate = ?,
+                max_drawdown_pct = ?,
+                avg_profit_per_trade = ?
+            WHERE id = ?
+        ''', (total_trades, winning_trades, losing_trades, total_pnl, total_pnl_pct,
+              win_rate, max_drawdown_pct, avg_profit_per_trade, session_id))
+
+        conn.commit()
+        conn.close()
+
+    def get_profile_performance(self, profile_id: int) -> Dict:
+        """Get aggregated performance metrics for a profile across all sessions"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT
+                COUNT(*) as total_sessions,
+                SUM(trades_executed) as total_trades,
+                SUM(winning_trades) as total_winning_trades,
+                SUM(losing_trades) as total_losing_trades,
+                AVG(win_rate) as avg_win_rate,
+                SUM(total_pnl) as total_pnl,
+                AVG(total_pnl_pct) as avg_pnl_pct,
+                AVG(max_drawdown_pct) as avg_max_drawdown,
+                AVG(avg_profit_per_trade) as avg_profit_per_trade
+            FROM profile_sessions
+            WHERE profile_id = ? AND ended_at IS NOT NULL
+        ''', (profile_id,))
+
+        row = cursor.fetchone()
+        conn.close()
+
+        if row and row['total_sessions']:
+            return dict(row)
+        else:
+            return {
+                'total_sessions': 0,
+                'total_trades': 0,
+                'total_winning_trades': 0,
+                'total_losing_trades': 0,
+                'avg_win_rate': 0,
+                'total_pnl': 0,
+                'avg_pnl_pct': 0,
+                'avg_max_drawdown': 0,
+                'avg_profit_per_trade': 0
+            }
+
+    def get_model_profile_history(self, model_id: int, limit: int = 10) -> List[Dict]:
+        """Get profile usage history for a model"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT * FROM profile_sessions
+            WHERE model_id = ?
+            ORDER BY started_at DESC
+            LIMIT ?
+        ''', (model_id, limit))
+
+        rows = cursor.fetchall()
+        conn.close()
+
+        return [dict(row) for row in rows]
