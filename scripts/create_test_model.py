@@ -3,6 +3,11 @@
 Simple script to create a test model
 """
 
+import sys
+import os
+# Add parent directory to path so we can import from root
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from database_enhanced import EnhancedDatabase
 from database import Database
 
@@ -36,9 +41,9 @@ if count == 0:
     if provider_count == 0:
         print("  Creating default provider...")
         cursor.execute('''
-            INSERT INTO providers (name, api_key, base_url, models)
+            INSERT INTO providers (name, api_url, api_key, models)
             VALUES (?, ?, ?, ?)
-        ''', ('OpenRouter', 'test-key', 'https://openrouter.ai/api/v1', 'gpt-4'))
+        ''', ('Test OpenAI', 'https://api.openai.com/v1', 'test-key', 'gpt-3.5-turbo,gpt-4'))
         conn.commit()
         provider_id = cursor.lastrowid
         print(f"  ✓ Created provider (ID: {provider_id})")

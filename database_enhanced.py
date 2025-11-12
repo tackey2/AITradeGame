@@ -191,6 +191,25 @@ class EnhancedDatabase(Database):
             )
         ''')
 
+        # ============ Exchange Credentials Table ============
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS exchange_credentials (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                model_id INTEGER UNIQUE NOT NULL,
+                exchange_type TEXT DEFAULT 'binance',
+                api_key TEXT NOT NULL,
+                api_secret TEXT NOT NULL,
+                testnet_api_key TEXT,
+                testnet_api_secret TEXT,
+                is_active BOOLEAN DEFAULT 1,
+                last_validated TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+                FOREIGN KEY (model_id) REFERENCES models(id) ON DELETE CASCADE
+            )
+        ''')
+
         conn.commit()
         conn.close()
 
@@ -558,3 +577,187 @@ class EnhancedDatabase(Database):
             self.set_automation_level(model_id, 'fully_automated')
         else:
             raise ValueError(f"Invalid mode: {mode}")
+
+    # ============ Exchange Credentials Management ============
+
+    def set_exchange_credentials(self, model_id: int, api_key: str, api_secret: str,
+                                testnet_api_key: str = None, testnet_api_secret: str = None,
+                                exchange_type: str = 'binance'):
+        """
+        Store exchange API credentials for a model
+
+        NOTE: In production, these should be encrypted!
+        For now, storing in plaintext for simplicity.
+
+        Args:
+            model_id: Model ID
+            api_key: Mainnet API key
+            api_secret: Mainnet API secret
+            testnet_api_key: Testnet API key (optional)
+            testnet_api_secret: Testnet API secret (optional)
+            exchange_type: Exchange type (default: binance)
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        # Check if credentials exist
+        cursor.execute('SELECT id FROM exchange_credentials WHERE model_id = ?', (model_id,))
+        exists = cursor.fetchone()
+
+        if exists:
+            # Update existing
+            cursor.execute('''
+                UPDATE exchange_credentials
+                SET api_key = ?,
+                    api_secret = ?,
+                    testnet_api_key = ?,
+                    testnet_api_secret = ?,
+                    exchange_type = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE model_id = ?
+            ''', (api_key, api_secret, testnet_api_key, testnet_api_secret, exchange_type, model_id))
+        else:
+            # Insert new
+            cursor.execute('''
+                INSERT INTO exchange_credentials
+                (model_id, api_key, api_secret, testnet_api_key, testnet_api_secret, exchange_type)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (model_id, api_key, api_secret, testnet_api_key, testnet_api_secret, exchange_type))
+
+        conn.commit()
+        conn.close()
+
+        # Log credential update
+        self.log_incident(
+            model_id=model_id,
+            incident_type='CREDENTIALS_UPDATED',
+            severity='medium',
+            message=f'Exchange credentials updated for {exchange_type}'
+        )
+
+    def get_exchange_credentials(self, model_id: int) -> Optional[Dict]:
+        """Get exchange credentials for a model"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT * FROM exchange_credentials
+            WHERE model_id = ? AND is_active = 1
+        ''', (model_id,))
+
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            return dict(row)
+        return None
+
+    def validate_exchange_credentials(self, model_id: int) -> bool:
+        """
+        Validate exchange credentials by testing connection
+
+        Returns:
+            True if credentials are valid, False otherwise
+        """
+        from exchange_client import ExchangeClient
+
+        credentials = self.get_exchange_credentials(model_id)
+        if not credentials:
+            return False
+
+        # Determine which credentials to use
+        exchange_env = self.get_exchange_environment(model_id)
+
+        if exchange_env == 'testnet':
+            api_key = credentials.get('testnet_api_key')
+            api_secret = credentials.get('testnet_api_secret')
+            testnet = True
+        else:
+            api_key = credentials.get('api_key')
+            api_secret = credentials.get('api_secret')
+            testnet = False
+
+        if not api_key or not api_secret:
+            return False
+
+        try:
+            # Try to create client and ping
+            client = ExchangeClient(api_key=api_key, api_secret=api_secret, testnet=testnet)
+            is_valid = client.ping()
+
+            if is_valid:
+                # Update validation timestamp
+                conn = self.get_connection()
+                cursor = conn.cursor()
+                cursor.execute('''
+                    UPDATE exchange_credentials
+                    SET last_validated = CURRENT_TIMESTAMP
+                    WHERE model_id = ?
+                ''', (model_id,))
+                conn.commit()
+                conn.close()
+
+            return is_valid
+
+        except Exception as e:
+            print(f"Credential validation failed: {str(e)}")
+            return False
+
+    def delete_exchange_credentials(self, model_id: int):
+        """Delete exchange credentials for a model"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('DELETE FROM exchange_credentials WHERE model_id = ?', (model_id,))
+
+        conn.commit()
+        conn.close()
+
+        self.log_incident(
+            model_id=model_id,
+            incident_type='CREDENTIALS_DELETED',
+            severity='medium',
+            message='Exchange credentials deleted'
+        )
+
+    def get_exchange_client(self, model_id: int):
+        """
+        Get configured ExchangeClient for a model
+
+        Returns:
+            ExchangeClient instance or None if not configured
+        """
+        from exchange_client import ExchangeClient
+
+        credentials = self.get_exchange_credentials(model_id)
+        if not credentials:
+            return None
+
+        # Determine which credentials to use based on exchange environment
+        exchange_env = self.get_exchange_environment(model_id)
+
+        if exchange_env == 'testnet':
+            api_key = credentials.get('testnet_api_key')
+            api_secret = credentials.get('testnet_api_secret')
+            testnet = True
+        else:
+            api_key = credentials.get('api_key')
+            api_secret = credentials.get('api_secret')
+            testnet = False
+
+        if not api_key or not api_secret:
+            print(f"No {exchange_env} credentials configured for model {model_id}")
+            return None
+
+        try:
+            client = ExchangeClient(api_key=api_key, api_secret=api_secret, testnet=testnet)
+            return client
+        except Exception as e:
+            print(f"Failed to create exchange client: {str(e)}")
+            self.log_incident(
+                model_id=model_id,
+                incident_type='EXCHANGE_CLIENT_ERROR',
+                severity='high',
+                message=f'Failed to create exchange client: {str(e)}'
+            )
+            return None

@@ -709,6 +709,119 @@ def update_model_settings(model_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# -------- Exchange Credentials Management --------
+
+@app.route('/api/models/<int:model_id>/exchange/credentials', methods=['GET'])
+def get_exchange_credentials(model_id):
+    """Get exchange credentials status (without exposing secrets)"""
+    try:
+        credentials = enhanced_db.get_exchange_credentials(model_id)
+
+        if not credentials:
+            return jsonify({
+                'configured': False,
+                'has_mainnet': False,
+                'has_testnet': False
+            })
+
+        # Return status without exposing API secrets
+        return jsonify({
+            'configured': True,
+            'has_mainnet': bool(credentials.get('api_key')),
+            'has_testnet': bool(credentials.get('testnet_api_key')),
+            'exchange_type': credentials.get('exchange_type', 'binance'),
+            'last_validated': credentials.get('last_validated'),
+            'is_active': credentials.get('is_active', True)
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/exchange/credentials', methods=['POST'])
+def set_exchange_credentials(model_id):
+    """Set exchange credentials for a model"""
+    try:
+        data = request.json
+
+        api_key = data.get('api_key')
+        api_secret = data.get('api_secret')
+        testnet_api_key = data.get('testnet_api_key')
+        testnet_api_secret = data.get('testnet_api_secret')
+        exchange_type = data.get('exchange_type', 'binance')
+
+        if not api_key or not api_secret:
+            return jsonify({'error': 'API key and secret are required'}), 400
+
+        # Store credentials
+        enhanced_db.set_exchange_credentials(
+            model_id=model_id,
+            api_key=api_key,
+            api_secret=api_secret,
+            testnet_api_key=testnet_api_key,
+            testnet_api_secret=testnet_api_secret,
+            exchange_type=exchange_type
+        )
+
+        return jsonify({
+            'success': True,
+            'message': 'Exchange credentials saved successfully'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/exchange/credentials', methods=['DELETE'])
+def delete_exchange_credentials(model_id):
+    """Delete exchange credentials for a model"""
+    try:
+        enhanced_db.delete_exchange_credentials(model_id)
+
+        return jsonify({
+            'success': True,
+            'message': 'Exchange credentials deleted'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/exchange/validate', methods=['POST'])
+def validate_exchange_credentials(model_id):
+    """Validate exchange credentials by testing connection"""
+    try:
+        is_valid = enhanced_db.validate_exchange_credentials(model_id)
+
+        return jsonify({
+            'valid': is_valid,
+            'message': 'Credentials are valid' if is_valid else 'Credentials validation failed'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/exchange/environment', methods=['GET'])
+def get_exchange_environment(model_id):
+    """Get exchange environment (testnet or mainnet)"""
+    try:
+        exchange_env = enhanced_db.get_exchange_environment(model_id)
+        return jsonify({'exchange_environment': exchange_env})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/exchange/environment', methods=['POST'])
+def set_exchange_environment(model_id):
+    """Set exchange environment (testnet or mainnet)"""
+    try:
+        data = request.json
+        exchange_env = data.get('exchange_environment')
+
+        if exchange_env not in ['testnet', 'mainnet']:
+            return jsonify({'error': 'Invalid exchange environment. Must be "testnet" or "mainnet"'}), 400
+
+        enhanced_db.set_exchange_environment(model_id, exchange_env)
+
+        return jsonify({
+            'success': True,
+            'exchange_environment': exchange_env
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 # -------- Pending Decisions (Semi-Auto Workflow) --------
 
 @app.route('/api/pending-decisions', methods=['GET'])
