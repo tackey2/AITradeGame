@@ -17,6 +17,7 @@ from trading_modes import TradingExecutor
 from risk_manager import RiskManager
 from notifier import Notifier
 from explainer import AIExplainer
+from market_analyzer import MarketAnalyzer
 
 app = Flask(__name__)
 CORS(app)
@@ -1238,6 +1239,154 @@ def _calculate_risk_score(profile):
     score += profile['max_daily_loss_pct'] * 5  # Weight: 5
     score += profile['max_drawdown_pct'] * 2  # Weight: 2
     return min(100, score)
+
+# -------- Profile Recommendations (Phase 3) --------
+
+@app.route('/api/models/<int:model_id>/recommend-profile', methods=['GET'])
+def recommend_profile(model_id):
+    """
+    Analyze current performance and recommend optimal risk profile
+    Uses existing trade data - no external APIs required
+    """
+    try:
+        analyzer = MarketAnalyzer(enhanced_db)
+        recommendation = analyzer.recommend_profile(model_id)
+
+        # Get full profile details for recommended profile
+        recommended_profile_data = enhanced_db.get_risk_profile_by_name(
+            recommendation['recommended_profile']
+        )
+
+        return jsonify({
+            'success': True,
+            'recommendation': {
+                'profile_name': recommendation['recommended_profile'],
+                'profile_id': recommended_profile_data['id'] if recommended_profile_data else None,
+                'profile_icon': recommended_profile_data['icon'] if recommended_profile_data else '⭐',
+                'current_profile': recommendation['current_profile'],
+                'should_switch': recommendation['should_switch'],
+                'reason': recommendation['reason'],
+                'all_reasons': recommendation['all_reasons'],
+                'confidence': recommendation['confidence']
+            },
+            'metrics': recommendation['metrics'],
+            'alternatives': recommendation['alternatives']
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/market-metrics', methods=['GET'])
+def get_market_metrics(model_id):
+    """Get detailed market condition metrics"""
+    try:
+        analyzer = MarketAnalyzer(enhanced_db)
+        metrics = analyzer.get_market_metrics(model_id)
+
+        return jsonify({
+            'success': True,
+            'metrics': metrics,
+            'analysis': {
+                'condition': _classify_market_condition(metrics),
+                'risk_level': _assess_risk_level(metrics),
+                'trading_suitability': _assess_trading_suitability(metrics)
+            }
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/profile-suitability', methods=['GET'])
+def get_profile_suitability(model_id):
+    """Get suitability scores for all profiles"""
+    try:
+        analyzer = MarketAnalyzer(enhanced_db)
+        suitability = analyzer.get_profile_suitability(model_id)
+
+        # Get all profiles with their suitability scores
+        all_profiles = enhanced_db.get_all_risk_profiles()
+
+        profiles_with_scores = []
+        for profile in all_profiles:
+            if profile['name'] in suitability:
+                profiles_with_scores.append({
+                    'id': profile['id'],
+                    'name': profile['name'],
+                    'icon': profile['icon'],
+                    'description': profile['description'],
+                    'suitability_score': suitability[profile['name']],
+                    'suitability_label': _get_suitability_label(suitability[profile['name']])
+                })
+
+        # Sort by suitability score
+        profiles_with_scores.sort(key=lambda x: x['suitability_score'], reverse=True)
+
+        return jsonify({
+            'success': True,
+            'profiles': profiles_with_scores
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+def _classify_market_condition(metrics: dict) -> str:
+    """Classify overall market condition"""
+    if metrics['drawdown_pct'] < -15 or metrics['recent_win_rate'] < 30:
+        return 'adverse'
+    elif metrics['win_rate'] > 60 and metrics['drawdown_pct'] > -5:
+        return 'favorable'
+    elif metrics['volatility'] > 150:
+        return 'volatile'
+    else:
+        return 'normal'
+
+def _assess_risk_level(metrics: dict) -> str:
+    """Assess current risk level"""
+    risk_score = 0
+
+    if metrics['drawdown_pct'] < -10:
+        risk_score += 3
+    if metrics['consecutive_losses'] >= 4:
+        risk_score += 2
+    if metrics['volatility'] > 150:
+        risk_score += 2
+    if metrics['recent_win_rate'] < 40:
+        risk_score += 2
+
+    if risk_score >= 5:
+        return 'high'
+    elif risk_score >= 3:
+        return 'elevated'
+    elif risk_score >= 1:
+        return 'moderate'
+    else:
+        return 'low'
+
+def _assess_trading_suitability(metrics: dict) -> str:
+    """Assess if conditions are suitable for trading"""
+    if metrics['drawdown_pct'] < -15:
+        return 'not_recommended'
+    elif metrics['consecutive_losses'] >= 5:
+        return 'pause_recommended'
+    elif metrics['win_rate'] > 55 and metrics['total_trades'] >= 15:
+        return 'excellent'
+    elif metrics['total_trades'] < 5:
+        return 'insufficient_data'
+    else:
+        return 'proceed_with_caution'
+
+def _get_suitability_label(score: float) -> str:
+    """Convert suitability score to label"""
+    if score >= 80:
+        return 'Highly Recommended'
+    elif score >= 60:
+        return 'Recommended'
+    elif score >= 40:
+        return 'Suitable'
+    elif score >= 20:
+        return 'Not Ideal'
+    else:
+        return 'Not Recommended'
 
 # -------- Readiness Assessment --------
 
