@@ -91,18 +91,198 @@ class LiveExecutor(EnvironmentExecutor):
     def execute_trade(self, model_id: int, coin: str, decision: Dict,
                      market_data: Dict) -> Dict:
         """Execute trade on real exchange"""
-        # TODO: Implement real exchange execution
-        # For now, fall back to simulation
-        # In future, this will call self.exchange.place_order(...)
+        from binance.exceptions import BinanceAPIException
 
-        print(f"[LIVE] Would execute on real exchange: {coin} {decision.get('signal')}")
+        if not self.exchange:
+            # No exchange configured - log error and fall back to simulation
+            self.db.log_incident(
+                model_id=model_id,
+                incident_type='EXCHANGE_NOT_CONFIGURED',
+                severity='critical',
+                message='Live mode enabled but no exchange client configured'
+            )
 
-        # Temporary: use simulation until Binance is integrated
-        sim_executor = SimulationExecutor(self.db)
-        result = sim_executor.execute_trade(model_id, coin, decision, market_data)
-        result['environment'] = 'live'
-        result['status'] = 'simulated_pending_exchange'
-        return result
+            print("[LIVE] ERROR: No exchange configured - falling back to simulation")
+            sim_executor = SimulationExecutor(self.db)
+            result = sim_executor.execute_trade(model_id, coin, decision, market_data)
+            result['environment'] = 'live'
+            result['status'] = 'failed_no_exchange'
+            return result
+
+        signal = decision.get('signal')
+        quantity = decision.get('quantity', 0)
+        current_price = market_data.get('price', 0)
+
+        # Convert coin to Binance symbol format (e.g., BTC -> BTCUSDT)
+        symbol = f"{coin}USDT"
+
+        print(f"[LIVE] Executing on real exchange: {symbol} {signal} {quantity}")
+
+        try:
+            # Execute based on signal type
+            if signal == 'buy_to_enter':
+                # Place market buy order
+                order = self.exchange.place_market_order(
+                    symbol=symbol,
+                    side='BUY',
+                    quantity=quantity,
+                    test=False  # Real execution
+                )
+
+                # Update database (positions)
+                from trading_engine import TradingEngine
+                engine = TradingEngine(self.db)
+                engine._execute_buy(model_id, coin, quantity, current_price,
+                                   decision.get('leverage', 1))
+
+                return {
+                    'coin': coin,
+                    'signal': signal,
+                    'quantity': quantity,
+                    'price': order.get('price') or current_price,
+                    'status': 'executed',
+                    'environment': 'live',
+                    'order_id': order.get('order_id'),
+                    'exchange_response': order
+                }
+
+            elif signal == 'sell_to_enter':
+                # Place market sell order (short)
+                order = self.exchange.place_market_order(
+                    symbol=symbol,
+                    side='SELL',
+                    quantity=quantity,
+                    test=False
+                )
+
+                # Update database
+                from trading_engine import TradingEngine
+                engine = TradingEngine(self.db)
+                engine._execute_sell(model_id, coin, quantity, current_price,
+                                    decision.get('leverage', 1))
+
+                return {
+                    'coin': coin,
+                    'signal': signal,
+                    'quantity': quantity,
+                    'price': order.get('price') or current_price,
+                    'status': 'executed',
+                    'environment': 'live',
+                    'order_id': order.get('order_id'),
+                    'exchange_response': order
+                }
+
+            elif signal == 'close_position':
+                # Get current position to determine order side
+                portfolio = self.db.get_portfolio(model_id)
+                position = portfolio.get('positions', {}).get(coin)
+
+                if not position or position['quantity'] == 0:
+                    return {
+                        'coin': coin,
+                        'signal': signal,
+                        'quantity': 0,
+                        'price': current_price,
+                        'status': 'skipped',
+                        'environment': 'live',
+                        'reason': 'No position to close'
+                    }
+
+                # Determine side (close long = sell, close short = buy)
+                close_side = 'SELL' if position['quantity'] > 0 else 'BUY'
+                close_quantity = abs(position['quantity'])
+
+                order = self.exchange.place_market_order(
+                    symbol=symbol,
+                    side=close_side,
+                    quantity=close_quantity,
+                    test=False
+                )
+
+                # Update database
+                from trading_engine import TradingEngine
+                engine = TradingEngine(self.db)
+                engine._execute_close(model_id, coin, current_price)
+
+                return {
+                    'coin': coin,
+                    'signal': signal,
+                    'quantity': close_quantity,
+                    'price': order.get('price') or current_price,
+                    'status': 'executed',
+                    'environment': 'live',
+                    'order_id': order.get('order_id'),
+                    'exchange_response': order
+                }
+
+            else:
+                # Unknown signal
+                return {
+                    'coin': coin,
+                    'signal': signal,
+                    'quantity': 0,
+                    'price': current_price,
+                    'status': 'skipped',
+                    'environment': 'live',
+                    'reason': f'Unknown signal: {signal}'
+                }
+
+        except BinanceAPIException as e:
+            # Binance API error
+            error_msg = f"Binance API error: {e.message} (code: {e.code})"
+
+            self.db.log_incident(
+                model_id=model_id,
+                incident_type='EXCHANGE_API_ERROR',
+                severity='high',
+                message=error_msg,
+                details={
+                    'coin': coin,
+                    'signal': signal,
+                    'error_code': e.code,
+                    'error_message': e.message
+                }
+            )
+
+            print(f"[LIVE] API Error: {error_msg}")
+
+            return {
+                'coin': coin,
+                'signal': signal,
+                'quantity': quantity,
+                'price': current_price,
+                'status': 'failed',
+                'environment': 'live',
+                'error': error_msg
+            }
+
+        except Exception as e:
+            # Generic error
+            error_msg = f"Execution error: {str(e)}"
+
+            self.db.log_incident(
+                model_id=model_id,
+                incident_type='EXECUTION_ERROR',
+                severity='critical',
+                message=error_msg,
+                details={
+                    'coin': coin,
+                    'signal': signal,
+                    'error': str(e)
+                }
+            )
+
+            print(f"[LIVE] Execution Error: {error_msg}")
+
+            return {
+                'coin': coin,
+                'signal': signal,
+                'quantity': quantity,
+                'price': current_price,
+                'status': 'failed',
+                'environment': 'live',
+                'error': error_msg
+            }
 
 
 # ============ Automation Handlers ============
@@ -307,24 +487,23 @@ class TradingExecutor:
       - Risk Manager: What's safe to execute
     """
 
-    def __init__(self, db, risk_manager, notifier=None, explainer=None, exchange=None):
+    def __init__(self, db, risk_manager, notifier=None, explainer=None):
         """
         Args:
             db: EnhancedDatabase instance
             risk_manager: RiskManager instance
             notifier: Notifier instance (optional)
             explainer: AIExplainer instance (optional)
-            exchange: Exchange interface (optional, for live trading)
         """
         self.db = db
         self.risk_manager = risk_manager
         self.notifier = notifier
         self.explainer = explainer
 
-        # Environment executors
+        # Environment executors (LiveExecutor exchange client loaded per-model)
         self.executors = {
             TradingEnvironment.SIMULATION: SimulationExecutor(db),
-            TradingEnvironment.LIVE: LiveExecutor(db, exchange)
+            TradingEnvironment.LIVE: None  # Created dynamically per model
         }
 
         # Automation handlers
@@ -355,6 +534,20 @@ class TradingExecutor:
 
         model = self.db.get_model(model_id)
         print(f"[{environment.value.upper()}|{automation.value.upper()}] Trading cycle for {model['name']}")
+
+        # Load exchange client for live environment
+        if environment == TradingEnvironment.LIVE:
+            exchange_client = self.db.get_exchange_client(model_id)
+            if not exchange_client:
+                print("[LIVE] WARNING: No exchange client configured - will fall back to simulation")
+                self.db.log_incident(
+                    model_id=model_id,
+                    incident_type='EXCHANGE_NOT_CONFIGURED',
+                    severity='high',
+                    message='Live trading enabled but no exchange credentials configured'
+                )
+            # Create LiveExecutor with the exchange client
+            self.executors[TradingEnvironment.LIVE] = LiveExecutor(self.db, exchange_client)
 
         # Get portfolio
         portfolio = self.db.get_portfolio(model_id, market_data)
