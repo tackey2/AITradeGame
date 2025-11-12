@@ -3,6 +3,11 @@
 Simple script to create a test model
 """
 
+import sys
+import os
+# Add parent directory to path so we can import from root
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from database_enhanced import EnhancedDatabase
 from database import Database
 
