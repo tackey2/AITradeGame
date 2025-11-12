@@ -17,6 +17,7 @@ from trading_modes import TradingExecutor
 from risk_manager import RiskManager
 from notifier import Notifier
 from explainer import AIExplainer
+from market_analyzer import MarketAnalyzer
 
 app = Flask(__name__)
 CORS(app)
@@ -27,6 +28,9 @@ enhanced_db = EnhancedDatabase('AITradeGame.db')
 
 # Initialize enhanced database schema
 enhanced_db.init_db()
+
+# Initialize system risk profiles
+enhanced_db.init_system_risk_profiles()
 
 # Market data fetcher
 market_fetcher = MarketDataFetcher()
@@ -76,6 +80,22 @@ def add_provider():
             models=data.get('models', '')
         )
         return jsonify({'id': provider_id, 'message': 'Provider added successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/providers/<int:provider_id>', methods=['PUT'])
+def update_provider(provider_id):
+    """Update API provider"""
+    data = request.json
+    try:
+        db.update_provider(
+            provider_id=provider_id,
+            name=data['name'],
+            api_url=data['api_url'],
+            api_key=data['api_key'],
+            models=data.get('models', '')
+        )
+        return jsonify({'message': 'Provider updated successfully'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -178,16 +198,50 @@ def add_model():
         print(f"[ERROR] Failed to add model: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/models/<int:model_id>', methods=['PUT'])
+def update_model(model_id):
+    """Update model information"""
+    data = request.json
+    try:
+        db.update_model(
+            model_id=model_id,
+            name=data.get('name'),
+            provider_id=data.get('provider_id'),
+            model_name=data.get('model_name'),
+            initial_capital=data.get('initial_capital')
+        )
+
+        # If model is in trading_engines and provider/model_name changed, reinitialize
+        if model_id in trading_engines and (data.get('provider_id') or data.get('model_name')):
+            model = db.get_model(model_id)
+            trading_engines[model_id] = TradingEngine(
+                model_id=model_id,
+                db=db,
+                market_fetcher=market_fetcher,
+                ai_trader=AITrader(
+                    api_key=model['api_key'],
+                    api_url=model['api_url'],
+                    model_name=model['model_name']
+                ),
+                trade_fee_rate=TRADE_FEE_RATE
+            )
+            print(f"[INFO] Model {model_id} ({model['name']}) reinitialized")
+
+        return jsonify({'message': 'Model updated successfully'})
+    except Exception as e:
+        print(f"[ERROR] Update model {model_id} failed: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/models/<int:model_id>', methods=['DELETE'])
 def delete_model(model_id):
     try:
         model = db.get_model(model_id)
         model_name = model['name'] if model else f"ID-{model_id}"
-        
+
         db.delete_model(model_id)
         if model_id in trading_engines:
             del trading_engines[model_id]
-        
+
         print(f"[INFO] Model {model_id} ({model_name}) deleted")
         return jsonify({'message': 'Model deleted successfully'})
     except Exception as e:
@@ -986,6 +1040,353 @@ def get_risk_status(model_id):
         return jsonify(risk_status)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# -------- Risk Profiles Management --------
+
+@app.route('/api/risk-profiles', methods=['GET'])
+def get_all_risk_profiles():
+    """Get all risk profiles (system and custom)"""
+    try:
+        profiles = enhanced_db.get_all_risk_profiles()
+        return jsonify(profiles)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/risk-profiles/<int:profile_id>', methods=['GET'])
+def get_risk_profile(profile_id):
+    """Get a specific risk profile"""
+    try:
+        profile = enhanced_db.get_risk_profile(profile_id)
+        if not profile:
+            return jsonify({'error': 'Profile not found'}), 404
+        return jsonify(profile)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/risk-profiles', methods=['POST'])
+def create_custom_risk_profile():
+    """Create a custom risk profile"""
+    try:
+        data = request.json
+
+        name = data.get('name')
+        description = data.get('description', '')
+        color = data.get('color', '#64748b')
+        icon = data.get('icon', '⭐')
+
+        if not name:
+            return jsonify({'error': 'Profile name is required'}), 400
+
+        # Extract risk parameters
+        parameters = {
+            'max_position_size_pct': data.get('max_position_size_pct', 10.0),
+            'max_open_positions': data.get('max_open_positions', 5),
+            'min_cash_reserve_pct': data.get('min_cash_reserve_pct', 20.0),
+            'max_daily_loss_pct': data.get('max_daily_loss_pct', 3.0),
+            'max_drawdown_pct': data.get('max_drawdown_pct', 15.0),
+            'max_daily_trades': data.get('max_daily_trades', 20),
+            'trading_interval_minutes': data.get('trading_interval_minutes', 60),
+            'auto_pause_consecutive_losses': data.get('auto_pause_consecutive_losses', 5),
+            'auto_pause_win_rate_threshold': data.get('auto_pause_win_rate_threshold', 40.0),
+            'auto_pause_volatility_multiplier': data.get('auto_pause_volatility_multiplier', 3.0),
+            'trading_fee_rate': data.get('trading_fee_rate', 0.1),
+            'ai_temperature': data.get('ai_temperature', 0.7),
+            'ai_strategy': data.get('ai_strategy', 'day_trading_mean_reversion')
+        }
+
+        profile_id = enhanced_db.create_custom_risk_profile(
+            name=name,
+            description=description,
+            parameters=parameters,
+            color=color,
+            icon=icon
+        )
+
+        return jsonify({
+            'success': True,
+            'profile_id': profile_id,
+            'message': f'Custom profile "{name}" created successfully'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/risk-profiles/<int:profile_id>', methods=['PUT'])
+def update_risk_profile(profile_id):
+    """Update a custom risk profile"""
+    try:
+        data = request.json
+        enhanced_db.update_risk_profile(profile_id, data)
+        return jsonify({
+            'success': True,
+            'message': 'Profile updated successfully'
+        })
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 403
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/risk-profiles/<int:profile_id>', methods=['DELETE'])
+def delete_risk_profile(profile_id):
+    """Delete a custom risk profile"""
+    try:
+        enhanced_db.delete_risk_profile(profile_id)
+        return jsonify({
+            'success': True,
+            'message': 'Profile deleted successfully'
+        })
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 403
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/apply-profile', methods=['POST'])
+def apply_risk_profile(model_id):
+    """Apply a risk profile to a model"""
+    try:
+        data = request.json
+        profile_id = data.get('profile_id')
+
+        if not profile_id:
+            return jsonify({'error': 'profile_id is required'}), 400
+
+        enhanced_db.apply_risk_profile(model_id, profile_id)
+
+        profile = enhanced_db.get_risk_profile(profile_id)
+
+        return jsonify({
+            'success': True,
+            'message': f'Profile "{profile["name"]}" applied successfully',
+            'profile': profile
+        })
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/active-profile', methods=['GET'])
+def get_active_profile(model_id):
+    """Get the active risk profile for a model"""
+    try:
+        settings = enhanced_db.get_model_settings(model_id)
+        profile_id = settings.get('active_profile_id')
+
+        if not profile_id:
+            return jsonify({
+                'active_profile': None,
+                'message': 'No profile active, using custom settings'
+            })
+
+        profile = enhanced_db.get_risk_profile(profile_id)
+        return jsonify({
+            'active_profile': profile
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/risk-profiles/<int:profile_id>/performance', methods=['GET'])
+def get_profile_performance(profile_id):
+    """Get performance metrics for a risk profile"""
+    try:
+        performance = enhanced_db.get_profile_performance(profile_id)
+        return jsonify(performance)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/profile-history', methods=['GET'])
+def get_model_profile_history(model_id):
+    """Get profile usage history for a model"""
+    try:
+        limit = request.args.get('limit', 10, type=int)
+        history = enhanced_db.get_model_profile_history(model_id, limit)
+        return jsonify(history)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/risk-profiles/compare', methods=['POST'])
+def compare_risk_profiles():
+    """Compare multiple risk profiles"""
+    try:
+        data = request.json
+        profile_ids = data.get('profile_ids', [])
+
+        if not profile_ids or len(profile_ids) < 2:
+            return jsonify({'error': 'At least 2 profile IDs required for comparison'}), 400
+
+        profiles = []
+        for profile_id in profile_ids:
+            profile = enhanced_db.get_risk_profile(profile_id)
+            if profile:
+                performance = enhanced_db.get_profile_performance(profile_id)
+                profile['performance'] = performance
+                profiles.append(profile)
+
+        return jsonify({
+            'profiles': profiles,
+            'comparison': {
+                'risk_levels': {p['name']: _calculate_risk_score(p) for p in profiles},
+                'performance': {p['name']: p['performance']['avg_pnl_pct'] for p in profiles}
+            }
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+def _calculate_risk_score(profile):
+    """Calculate a risk score (0-100) for a profile"""
+    score = 0
+    score += profile['max_position_size_pct'] * 2  # Weight: 2
+    score += profile['max_open_positions'] * 3  # Weight: 3
+    score += (100 - profile['min_cash_reserve_pct']) * 0.5  # Weight: 0.5
+    score += profile['max_daily_loss_pct'] * 5  # Weight: 5
+    score += profile['max_drawdown_pct'] * 2  # Weight: 2
+    return min(100, score)
+
+# -------- Profile Recommendations (Phase 3) --------
+
+@app.route('/api/models/<int:model_id>/recommend-profile', methods=['GET'])
+def recommend_profile(model_id):
+    """
+    Analyze current performance and recommend optimal risk profile
+    Uses existing trade data - no external APIs required
+    """
+    try:
+        analyzer = MarketAnalyzer(enhanced_db)
+        recommendation = analyzer.recommend_profile(model_id)
+
+        # Get full profile details for recommended profile
+        recommended_profile_data = enhanced_db.get_risk_profile_by_name(
+            recommendation['recommended_profile']
+        )
+
+        return jsonify({
+            'success': True,
+            'recommendation': {
+                'profile_name': recommendation['recommended_profile'],
+                'profile_id': recommended_profile_data['id'] if recommended_profile_data else None,
+                'profile_icon': recommended_profile_data['icon'] if recommended_profile_data else '⭐',
+                'current_profile': recommendation['current_profile'],
+                'should_switch': recommendation['should_switch'],
+                'reason': recommendation['reason'],
+                'all_reasons': recommendation['all_reasons'],
+                'confidence': recommendation['confidence']
+            },
+            'metrics': recommendation['metrics'],
+            'alternatives': recommendation['alternatives']
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/market-metrics', methods=['GET'])
+def get_market_metrics(model_id):
+    """Get detailed market condition metrics"""
+    try:
+        analyzer = MarketAnalyzer(enhanced_db)
+        metrics = analyzer.get_market_metrics(model_id)
+
+        return jsonify({
+            'success': True,
+            'metrics': metrics,
+            'analysis': {
+                'condition': _classify_market_condition(metrics),
+                'risk_level': _assess_risk_level(metrics),
+                'trading_suitability': _assess_trading_suitability(metrics)
+            }
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/profile-suitability', methods=['GET'])
+def get_profile_suitability(model_id):
+    """Get suitability scores for all profiles"""
+    try:
+        analyzer = MarketAnalyzer(enhanced_db)
+        suitability = analyzer.get_profile_suitability(model_id)
+
+        # Get all profiles with their suitability scores
+        all_profiles = enhanced_db.get_all_risk_profiles()
+
+        profiles_with_scores = []
+        for profile in all_profiles:
+            if profile['name'] in suitability:
+                profiles_with_scores.append({
+                    'id': profile['id'],
+                    'name': profile['name'],
+                    'icon': profile['icon'],
+                    'description': profile['description'],
+                    'suitability_score': suitability[profile['name']],
+                    'suitability_label': _get_suitability_label(suitability[profile['name']])
+                })
+
+        # Sort by suitability score
+        profiles_with_scores.sort(key=lambda x: x['suitability_score'], reverse=True)
+
+        return jsonify({
+            'success': True,
+            'profiles': profiles_with_scores
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+def _classify_market_condition(metrics: dict) -> str:
+    """Classify overall market condition"""
+    if metrics['drawdown_pct'] < -15 or metrics['recent_win_rate'] < 30:
+        return 'adverse'
+    elif metrics['win_rate'] > 60 and metrics['drawdown_pct'] > -5:
+        return 'favorable'
+    elif metrics['volatility'] > 150:
+        return 'volatile'
+    else:
+        return 'normal'
+
+def _assess_risk_level(metrics: dict) -> str:
+    """Assess current risk level"""
+    risk_score = 0
+
+    if metrics['drawdown_pct'] < -10:
+        risk_score += 3
+    if metrics['consecutive_losses'] >= 4:
+        risk_score += 2
+    if metrics['volatility'] > 150:
+        risk_score += 2
+    if metrics['recent_win_rate'] < 40:
+        risk_score += 2
+
+    if risk_score >= 5:
+        return 'high'
+    elif risk_score >= 3:
+        return 'elevated'
+    elif risk_score >= 1:
+        return 'moderate'
+    else:
+        return 'low'
+
+def _assess_trading_suitability(metrics: dict) -> str:
+    """Assess if conditions are suitable for trading"""
+    if metrics['drawdown_pct'] < -15:
+        return 'not_recommended'
+    elif metrics['consecutive_losses'] >= 5:
+        return 'pause_recommended'
+    elif metrics['win_rate'] > 55 and metrics['total_trades'] >= 15:
+        return 'excellent'
+    elif metrics['total_trades'] < 5:
+        return 'insufficient_data'
+    else:
+        return 'proceed_with_caution'
+
+def _get_suitability_label(score: float) -> str:
+    """Convert suitability score to label"""
+    if score >= 80:
+        return 'Highly Recommended'
+    elif score >= 60:
+        return 'Recommended'
+    elif score >= 40:
+        return 'Suitable'
+    elif score >= 20:
+        return 'Not Ideal'
+    else:
+        return 'Not Recommended'
 
 # -------- Readiness Assessment --------
 

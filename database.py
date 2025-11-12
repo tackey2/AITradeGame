@@ -562,3 +562,36 @@ class Database:
         conn.close()
         return [dict(row) for row in rows]
 
+    def update_model(self, model_id: int, name: str = None, provider_id: int = None, model_name: str = None, initial_capital: float = None):
+        """Update model information"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        # Build dynamic UPDATE query based on provided parameters
+        updates = []
+        params = []
+
+        if name is not None:
+            updates.append("name = ?")
+            params.append(name)
+        if provider_id is not None:
+            updates.append("provider_id = ?")
+            params.append(provider_id)
+        if model_name is not None:
+            updates.append("model_name = ?")
+            params.append(model_name)
+        if initial_capital is not None:
+            updates.append("initial_capital = ?")
+            params.append(initial_capital)
+
+        if not updates:
+            conn.close()
+            return
+
+        params.append(model_id)
+        query = f"UPDATE models SET {', '.join(updates)} WHERE id = ?"
+
+        cursor.execute(query, params)
+        conn.commit()
+        conn.close()
+
