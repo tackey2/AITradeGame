@@ -1141,85 +1141,107 @@ class EnhancedDatabase(Database):
         conn = self.get_connection()
         cursor = conn.cursor()
 
-        # Find active session
-        cursor.execute('''
-            SELECT id, profile_id, started_at FROM profile_sessions
-            WHERE model_id = ? AND ended_at IS NULL
-            ORDER BY started_at DESC LIMIT 1
-        ''', (model_id,))
+        try:
+            # Find active session
+            cursor.execute('''
+                SELECT id, profile_id, started_at FROM profile_sessions
+                WHERE model_id = ? AND ended_at IS NULL
+                ORDER BY started_at DESC LIMIT 1
+            ''', (model_id,))
 
-        session = cursor.fetchone()
-        if not session:
+            session = cursor.fetchone()
+            if not session:
+                conn.close()
+                return
+
+            session_id = session['id']
+            started_at = session['started_at']
+
+            # Calculate metrics from trades in this session
+            try:
+                cursor.execute('''
+                    SELECT
+                        COUNT(*) as total_trades,
+                        SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as winning_trades,
+                        SUM(CASE WHEN pnl <= 0 THEN 1 ELSE 0 END) as losing_trades,
+                        SUM(pnl) as total_pnl,
+                        AVG(pnl) as avg_profit_per_trade
+                    FROM trades
+                    WHERE model_id = ? AND timestamp >= ?
+                ''', (model_id, started_at))
+
+                metrics = cursor.fetchone()
+
+                total_trades = metrics['total_trades'] or 0
+                winning_trades = metrics['winning_trades'] or 0
+                losing_trades = metrics['losing_trades'] or 0
+                total_pnl = metrics['total_pnl'] or 0
+                avg_profit_per_trade = metrics['avg_profit_per_trade'] or 0
+                win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
+            except:
+                # Trades table might not exist or have no data
+                total_trades = 0
+                winning_trades = 0
+                losing_trades = 0
+                total_pnl = 0
+                avg_profit_per_trade = 0
+                win_rate = 0
+
+            # Get portfolio value at start
+            try:
+                cursor.execute('''
+                    SELECT portfolio_value FROM portfolio_history
+                    WHERE model_id = ? AND timestamp >= ?
+                    ORDER BY timestamp ASC LIMIT 1
+                ''', (model_id, started_at))
+
+                start_row = cursor.fetchone()
+                start_value = start_row['portfolio_value'] if start_row else 10000
+            except:
+                # Portfolio history table might not exist
+                start_value = 10000
+
+            total_pnl_pct = (total_pnl / start_value * 100) if start_value > 0 else 0
+
+            # Calculate max drawdown during session
+            try:
+                cursor.execute('''
+                    SELECT MIN(portfolio_value) as min_value, MAX(portfolio_value) as peak_value
+                    FROM portfolio_history
+                    WHERE model_id = ? AND timestamp >= ?
+                ''', (model_id, started_at))
+
+                dd_row = cursor.fetchone()
+                if dd_row and dd_row['peak_value']:
+                    max_drawdown_pct = ((dd_row['min_value'] - dd_row['peak_value']) / dd_row['peak_value'] * 100)
+                else:
+                    max_drawdown_pct = 0
+            except:
+                # Portfolio history table might not exist
+                max_drawdown_pct = 0
+
+            # Update session with metrics
+            cursor.execute('''
+                UPDATE profile_sessions
+                SET ended_at = CURRENT_TIMESTAMP,
+                    trades_executed = ?,
+                    winning_trades = ?,
+                    losing_trades = ?,
+                    total_pnl = ?,
+                    total_pnl_pct = ?,
+                    win_rate = ?,
+                    max_drawdown_pct = ?,
+                    avg_profit_per_trade = ?
+                WHERE id = ?
+            ''', (total_trades, winning_trades, losing_trades, total_pnl, total_pnl_pct,
+                  win_rate, max_drawdown_pct, avg_profit_per_trade, session_id))
+
+            conn.commit()
+        except Exception as e:
+            # If any error occurs, just log and continue
+            print(f"Warning: Could not end profile session: {e}")
+        finally:
             conn.close()
-            return
-
-        session_id = session['id']
-        started_at = session['started_at']
-
-        # Calculate metrics from trades in this session
-        cursor.execute('''
-            SELECT
-                COUNT(*) as total_trades,
-                SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as winning_trades,
-                SUM(CASE WHEN pnl <= 0 THEN 1 ELSE 0 END) as losing_trades,
-                SUM(pnl) as total_pnl,
-                AVG(pnl) as avg_profit_per_trade
-            FROM trades
-            WHERE model_id = ? AND timestamp >= ?
-        ''', (model_id, started_at))
-
-        metrics = cursor.fetchone()
-
-        total_trades = metrics['total_trades'] or 0
-        winning_trades = metrics['winning_trades'] or 0
-        losing_trades = metrics['losing_trades'] or 0
-        total_pnl = metrics['total_pnl'] or 0
-        avg_profit_per_trade = metrics['avg_profit_per_trade'] or 0
-        win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
-
-        # Get portfolio value at start
-        cursor.execute('''
-            SELECT portfolio_value FROM portfolio_history
-            WHERE model_id = ? AND timestamp >= ?
-            ORDER BY timestamp ASC LIMIT 1
-        ''', (model_id, started_at))
-
-        start_row = cursor.fetchone()
-        start_value = start_row['portfolio_value'] if start_row else 10000
-
-        total_pnl_pct = (total_pnl / start_value * 100) if start_value > 0 else 0
-
-        # Calculate max drawdown during session
-        cursor.execute('''
-            SELECT MIN(portfolio_value) as min_value, MAX(portfolio_value) as peak_value
-            FROM portfolio_history
-            WHERE model_id = ? AND timestamp >= ?
-        ''', (model_id, started_at))
-
-        dd_row = cursor.fetchone()
-        if dd_row and dd_row['peak_value']:
-            max_drawdown_pct = ((dd_row['min_value'] - dd_row['peak_value']) / dd_row['peak_value'] * 100)
-        else:
-            max_drawdown_pct = 0
-
-        # Update session with metrics
-        cursor.execute('''
-            UPDATE profile_sessions
-            SET ended_at = CURRENT_TIMESTAMP,
-                trades_executed = ?,
-                winning_trades = ?,
-                losing_trades = ?,
-                total_pnl = ?,
-                total_pnl_pct = ?,
-                win_rate = ?,
-                max_drawdown_pct = ?,
-                avg_profit_per_trade = ?
-            WHERE id = ?
-        ''', (total_trades, winning_trades, losing_trades, total_pnl, total_pnl_pct,
-              win_rate, max_drawdown_pct, avg_profit_per_trade, session_id))
-
-        conn.commit()
-        conn.close()
 
     def get_profile_performance(self, profile_id: int) -> Dict:
         """Get aggregated performance metrics for a profile across all sessions"""

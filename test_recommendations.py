@@ -10,7 +10,7 @@ import json
 from database_enhanced import EnhancedDatabase
 from market_analyzer import MarketAnalyzer
 
-BASE_URL = "http://localhost:5001"
+BASE_URL = "http://localhost:5000"
 
 def print_header(title):
     print("\n" + "=" * 70)

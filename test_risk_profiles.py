@@ -10,7 +10,7 @@ import json
 from database_enhanced import EnhancedDatabase
 from datetime import datetime
 
-BASE_URL = "http://localhost:5001"
+BASE_URL = "http://localhost:5000"
 
 def print_section(title):
     """Print a section header"""
