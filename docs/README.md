@@ -33,6 +33,13 @@ Start here if you're using AITradeGame:
 ### 👨‍💻 For Developers
 Start here if you're contributing to the project:
 
+- **[Trading Automation Analysis](developer/TRADING_AUTOMATION_ANALYSIS.md)** 🔥 **NEW - MUST READ**
+  - How automatic trading works (3 automation levels)
+  - Scheduled execution capability
+  - LLM prompt engineering for better results
+  - Personal usage considerations and safety
+  - **60+ pages of insights and recommendations**
+
 - **[API Documentation](developer/API_DOCUMENTATION.md)**
   - Complete REST API reference
   - Request/response examples
