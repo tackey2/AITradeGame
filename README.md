@@ -20,7 +20,15 @@ Includes a Windows one-click standalone executable that runs without installatio
 
 AI-driven trading strategies based on large language models, compatible with OpenAI, DeepSeek, Claude, and other models. Leveraged portfolio management with ECharts visualizations. 100% privacy with all data stored in local database. Trading fee configuration supported to simulate real trading environment.
 
-**Latest Features:**
+**Latest Features (Week 3 - Exchange Integration):**
+- 🔗 **Binance Exchange Integration**: Connect to real Binance exchange (testnet and mainnet)
+- 🔑 **Credentials Management UI**: Secure management of API keys with visual status indicators
+- ⚡ **Live Trading**: Execute real trades on Binance (supports testnet for safe testing)
+- 🎯 **Trading Modes**: Separation of environment (simulation/live) and automation (manual/semi/full)
+- 🛡️ **Safety First**: Testnet-first approach with clear warnings for mainnet
+- 📊 **Real-time Status**: Visual indicators showing connection status and last validation
+
+**Previous Features:**
 - API Provider Management: Unified management of multiple AI service provider API configurations
 - Smart Model Selection: Automatically fetch available model lists for each provider
 - Aggregated View: View aggregated assets and performance comparison across all models
@@ -107,9 +115,34 @@ Development requires Python 3.9 or later. Internet connection is needed for mark
 
 Install all dependencies with: pip install -r requirements.txt
 
+## Project Structure
+
+```
+AITradeGame/
+├── docs/                    # Documentation
+│   ├── user/               # User guides
+│   ├── developer/          # Developer documentation
+│   ├── phases/             # Phase completion docs
+│   └── archive/            # Historical documentation
+├── tests/                  # Test files
+├── scripts/                # Utility scripts
+├── templates/              # HTML templates
+├── static/                 # CSS and JavaScript
+├── app.py                  # Main Flask application
+├── exchange_client.py      # Binance exchange integration
+├── trading_modes.py        # Trading logic (simulation/live)
+├── database_enhanced.py    # Enhanced database with credentials
+└── README.md
+```
+
+### Key Documentation:
+- **User Guides**: `docs/user/EXCHANGE_SETUP_GUIDE.md` - Complete setup walkthrough
+- **Developer Docs**: `docs/developer/` - API documentation and contribution guide
+- **Phase Docs**: `docs/phases/` - Detailed implementation documentation
+
 ## Contributing
 
-Community contributions are welcome.
+Community contributions are welcome. See `docs/developer/CONTRIBUTING.md` for guidelines.
 
 ## Disclaimer
 
