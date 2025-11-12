@@ -303,6 +303,164 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Exchange Configuration -->
+            <div class="section">
+                <div class="section-header">
+                    <h2>Exchange Configuration</h2>
+                    <span class="help-icon" title="Configure Binance API credentials for live trading">
+                        <i class="bi bi-question-circle"></i>
+                    </span>
+                </div>
+
+                <!-- Exchange Status -->
+                <div class="exchange-status-card" id="exchangeStatusCard">
+                    <div class="status-row">
+                        <span class="status-label">Exchange Connection:</span>
+                        <span class="status-indicator" id="exchangeStatusIndicator">
+                            <i class="bi bi-circle-fill"></i>
+                            <span id="exchangeStatusText">Not Configured</span>
+                        </span>
+                    </div>
+                    <div class="status-row">
+                        <span class="status-label">Mainnet Credentials:</span>
+                        <span class="status-badge" id="mainnetStatusBadge">Not Set</span>
+                    </div>
+                    <div class="status-row">
+                        <span class="status-label">Testnet Credentials:</span>
+                        <span class="status-badge" id="testnetStatusBadge">Not Set</span>
+                    </div>
+                    <div class="status-row">
+                        <span class="status-label">Last Validated:</span>
+                        <span class="status-text" id="lastValidatedText">Never</span>
+                    </div>
+                </div>
+
+                <!-- Exchange Environment Selector -->
+                <div class="form-group">
+                    <label class="form-label-important">
+                        <i class="bi bi-server"></i>
+                        Exchange Environment
+                        <span class="help-icon" title="Select Testnet for safe testing, Mainnet for real trading">
+                            <i class="bi bi-question-circle"></i>
+                        </span>
+                    </label>
+                    <div class="exchange-env-selector">
+                        <div class="env-option" data-env="testnet">
+                            <input type="radio" name="exchangeEnv" id="exchangeEnvTestnet" value="testnet" checked>
+                            <label for="exchangeEnvTestnet">
+                                <i class="bi bi-shield-check"></i>
+                                <strong>Testnet</strong>
+                                <span class="env-desc">Safe testing environment (recommended)</span>
+                            </label>
+                        </div>
+                        <div class="env-option" data-env="mainnet">
+                            <input type="radio" name="exchangeEnv" id="exchangeEnvMainnet" value="mainnet">
+                            <label for="exchangeEnvMainnet">
+                                <i class="bi bi-exclamation-triangle-fill"></i>
+                                <strong>Mainnet</strong>
+                                <span class="env-desc">REAL MONEY - Use with extreme caution!</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Credentials Form -->
+                <div class="credentials-form" id="credentialsForm">
+                    <div class="form-section-header">
+                        <h3>
+                            <i class="bi bi-key"></i>
+                            Binance API Credentials
+                        </h3>
+                        <p class="form-section-desc">
+                            Get your API keys from
+                            <a href="https://testnet.binance.vision/" target="_blank">Binance Testnet</a> (for testing) or
+                            <a href="https://www.binance.com/en/my/settings/api-management" target="_blank">Binance</a> (for live trading)
+                        </p>
+                    </div>
+
+                    <!-- Testnet Credentials -->
+                    <div class="credentials-section">
+                        <h4 class="credentials-section-title">
+                            <i class="bi bi-shield-check"></i>
+                            Testnet Credentials (Safe Testing)
+                        </h4>
+
+                        <div class="form-group">
+                            <label>Testnet API Key</label>
+                            <input type="text" id="testnetApiKey" class="form-input" placeholder="Enter testnet API key">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Testnet API Secret</label>
+                            <div class="input-with-toggle">
+                                <input type="password" id="testnetApiSecret" class="form-input" placeholder="Enter testnet API secret">
+                                <button class="toggle-visibility" data-target="testnetApiSecret" title="Show/Hide">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Mainnet Credentials -->
+                    <div class="credentials-section warning-section">
+                        <h4 class="credentials-section-title">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                            Mainnet Credentials (REAL MONEY)
+                        </h4>
+
+                        <div class="warning-box">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            <div>
+                                <strong>Warning:</strong> Mainnet credentials control real funds.
+                                Only enter these if you intend to trade with real money.
+                                Always test thoroughly on Testnet first!
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Mainnet API Key</label>
+                            <input type="text" id="mainnetApiKey" class="form-input" placeholder="Enter mainnet API key">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Mainnet API Secret</label>
+                            <div class="input-with-toggle">
+                                <input type="password" id="mainnetApiSecret" class="form-input" placeholder="Enter mainnet API secret">
+                                <button class="toggle-visibility" data-target="mainnetApiSecret" title="Show/Hide">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="form-actions">
+                        <button class="btn-primary" id="saveCredentialsBtn">
+                            <i class="bi bi-save"></i>
+                            Save Credentials
+                        </button>
+                        <button class="btn-secondary" id="validateCredentialsBtn">
+                            <i class="bi bi-check-circle"></i>
+                            Validate Connection
+                        </button>
+                        <button class="btn-danger" id="deleteCredentialsBtn">
+                            <i class="bi bi-trash"></i>
+                            Delete Credentials
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Security Notice -->
+                <div class="info-box">
+                    <i class="bi bi-info-circle"></i>
+                    <div>
+                        <strong>Security Note:</strong> Your API keys are stored in the local database.
+                        For production use, ensure your database is encrypted and secured.
+                        Never share your API keys with anyone.
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Page: Readiness -->

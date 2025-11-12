@@ -755,4 +755,334 @@ body {
     .decision-actions {
         flex-direction: column;
     }
+
+    .exchange-env-selector {
+        grid-template-columns: 1fr;
+    }
+
+    .credentials-section {
+        padding: 12px;
+    }
+}
+
+/* ============ Exchange Configuration Styles ============ */
+
+/* Exchange Status Card */
+.exchange-status-card {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: var(--spacing);
+    margin-bottom: 20px;
+}
+
+.status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.status-row:last-child {
+    border-bottom: none;
+}
+
+.status-label {
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+}
+
+.status-indicator i {
+    font-size: 12px;
+}
+
+.status-indicator.status-ok {
+    color: var(--color-success);
+}
+
+.status-indicator.status-error {
+    color: var(--color-danger);
+}
+
+.status-indicator.status-warning {
+    color: var(--color-warning);
+}
+
+.status-indicator.status-inactive {
+    color: var(--text-muted);
+}
+
+.status-badge {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.85em;
+    font-weight: 600;
+}
+
+.status-badge.badge-ok {
+    background: rgba(76, 175, 80, 0.2);
+    color: var(--color-success);
+}
+
+.status-badge.badge-error {
+    background: rgba(244, 67, 54, 0.2);
+    color: var(--color-danger);
+}
+
+.status-text {
+    color: var(--text-secondary);
+    font-size: 0.9em;
+}
+
+/* Exchange Environment Selector */
+.form-label-important {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 1.1em;
+    margin-bottom: 12px;
+}
+
+.exchange-env-selector {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+    margin-bottom: 24px;
+}
+
+.env-option {
+    position: relative;
+}
+
+.env-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+}
+
+.env-option label {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px;
+    background: var(--bg-tertiary);
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.env-option label i {
+    font-size: 1.5em;
+    margin-bottom: 4px;
+}
+
+.env-option[data-env="testnet"] label i {
+    color: var(--color-success);
+}
+
+.env-option[data-env="mainnet"] label i {
+    color: var(--color-danger);
+}
+
+.env-option label:hover {
+    background: var(--bg-hover);
+    border-color: var(--color-primary);
+}
+
+.env-option input[type="radio"]:checked + label {
+    background: var(--bg-hover);
+    border-color: var(--color-primary);
+}
+
+.env-option[data-env="testnet"] input[type="radio"]:checked + label {
+    border-color: var(--color-success);
+}
+
+.env-option[data-env="mainnet"] input[type="radio"]:checked + label {
+    border-color: var(--color-danger);
+}
+
+.env-desc {
+    font-size: 0.85em;
+    color: var(--text-secondary);
+}
+
+/* Credentials Form */
+.credentials-form {
+    margin-top: 24px;
+}
+
+.form-section-header {
+    margin-bottom: 20px;
+}
+
+.form-section-header h3 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+}
+
+.form-section-desc {
+    color: var(--text-secondary);
+    font-size: 0.9em;
+    line-height: 1.5;
+}
+
+.form-section-desc a {
+    color: var(--color-primary);
+    text-decoration: none;
+}
+
+.form-section-desc a:hover {
+    text-decoration: underline;
+}
+
+/* Credentials Sections */
+.credentials-section {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.credentials-section.warning-section {
+    border-color: var(--color-warning);
+}
+
+.credentials-section-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    font-size: 1.05em;
+}
+
+.credentials-section-title i {
+    font-size: 1.2em;
+}
+
+/* Input with Toggle */
+.input-with-toggle {
+    position: relative;
+}
+
+.input-with-toggle input {
+    padding-right: 45px;
+}
+
+.toggle-visibility {
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.toggle-visibility:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.toggle-visibility i {
+    font-size: 1.1em;
+}
+
+/* Warning Box */
+.warning-box {
+    display: flex;
+    gap: 12px;
+    padding: 12px 16px;
+    background: rgba(255, 152, 0, 0.1);
+    border: 1px solid var(--color-warning);
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+}
+
+.warning-box i {
+    color: var(--color-warning);
+    font-size: 1.3em;
+    flex-shrink: 0;
+}
+
+.warning-box div {
+    flex: 1;
+}
+
+.warning-box strong {
+    color: var(--color-warning);
+}
+
+/* Info Box */
+.info-box {
+    display: flex;
+    gap: 12px;
+    padding: 12px 16px;
+    background: rgba(33, 150, 243, 0.1);
+    border: 1px solid var(--color-info);
+    border-radius: var(--radius);
+    margin-top: 20px;
+}
+
+.info-box i {
+    color: var(--color-info);
+    font-size: 1.3em;
+    flex-shrink: 0;
+}
+
+.info-box div {
+    flex: 1;
+    font-size: 0.9em;
+    color: var(--text-secondary);
+}
+
+.info-box strong {
+    color: var(--text-primary);
+}
+
+/* Button Danger */
+.btn-danger {
+    background: var(--color-danger);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+
+.btn-danger:hover {
+    background: #d32f2f;
+    transform: translateY(-1px);
+}
+
+.btn-danger:active {
+    transform: translateY(0);
+}
+
+.btn-danger:disabled {
+    background: #666;
+    cursor: not-allowed;
+    transform: none;
 }
