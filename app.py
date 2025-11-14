@@ -60,6 +60,10 @@ def test_ui_debug():
     with open('test_ui_debug.html', 'r') as f:
         return f.read()
 
+@app.route('/test-profiles')
+def test_profiles():
+    return render_template('test_profiles.html')
+
 # ============ Provider API Endpoints ============
 
 @app.route('/api/providers', methods=['GET'])

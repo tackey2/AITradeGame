@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Risk Profiles</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+        .section { background: white; padding: 20px; margin: 20px 0; border-radius: 8px; }
+        .success { color: green; }
+        .error { color: red; }
+        .profile { border: 1px solid #ddd; padding: 10px; margin: 10px 0; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Risk Profiles Debug Page</h1>
+
+    <div class="section">
+        <h2>1. Test API Endpoint</h2>
+        <button onclick="testAPI()">Test /api/risk-profiles</button>
+        <div id="apiResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>2. Test JavaScript Loading</h2>
+        <button onclick="testJavaScript()">Test JavaScript Functions</button>
+        <div id="jsResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>3. Test Create Profile Modal</h2>
+        <button onclick="testModal()">Open Create Profile Modal</button>
+        <div id="modalResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>4. View Loaded Profiles</h2>
+        <div id="profilesDisplay"></div>
+    </div>
+
+    <script src="/static/risk_profiles.js"></script>
+    <script>
+        async function testAPI() {
+            const resultDiv = document.getElementById('apiResult');
+            resultDiv.innerHTML = 'Loading...';
+
+            try {
+                const response = await fetch('/api/risk-profiles');
+                const profiles = await response.json();
+
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        ✅ API works! Loaded ${profiles.length} profiles
+                        <pre>${JSON.stringify(profiles, null, 2)}</pre>
+                    </div>
+                `;
+
+                // Display profiles
+                const display = document.getElementById('profilesDisplay');
+                display.innerHTML = profiles.map(p => `
+                    <div class="profile">
+                        <strong>${p.icon} ${p.name}</strong><br>
+                        ${p.description}<br>
+                        <small>Position: ${p.max_position_size_pct}% | Loss: ${p.max_daily_loss_pct}% | Trades: ${p.max_daily_trades}</small>
+                    </div>
+                `).join('');
+
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        function testJavaScript() {
+            const resultDiv = document.getElementById('jsResult');
+
+            // Check if functions exist
+            const checks = [
+                ['showCreateCustomProfileModal', typeof showCreateCustomProfileModal !== 'undefined'],
+                ['createCustomProfile', typeof createCustomProfile !== 'undefined'],
+                ['loadRiskProfiles', typeof loadRiskProfiles !== 'undefined'],
+                ['initRiskProfiles', typeof initRiskProfiles !== 'undefined']
+            ];
+
+            resultDiv.innerHTML = checks.map(([name, exists]) =>
+                exists
+                    ? `<div class="success">✅ ${name} exists</div>`
+                    : `<div class="error">❌ ${name} missing</div>`
+            ).join('');
+        }
+
+        function testModal() {
+            const resultDiv = document.getElementById('modalResult');
+
+            try {
+                if (typeof showCreateCustomProfileModal === 'undefined') {
+                    resultDiv.innerHTML = '<div class="error">❌ Function not loaded. Refresh the page with Ctrl+Shift+R</div>';
+                    return;
+                }
+
+                showCreateCustomProfileModal();
+                resultDiv.innerHTML = '<div class="success">✅ Modal opened! Check if you see it.</div>';
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        // Auto-run tests on load
+        window.addEventListener('load', () => {
+            testAPI();
+            testJavaScript();
+        });
+    </script>
+</body>
+</html>
