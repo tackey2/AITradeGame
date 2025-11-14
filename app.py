@@ -643,7 +643,6 @@ def init_enhanced_components(model_id):
         # Create executor with all components
         trading_executors[model_id] = TradingExecutor(
             db=enhanced_db,
-            exchange=None,  # TODO: Add exchange integration later
             risk_manager=risk_managers[model_id],
             notifier=notifiers[model_id],
             explainer=explainers[model_id]
