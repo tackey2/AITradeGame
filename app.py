@@ -303,6 +303,107 @@ def get_conversations(model_id):
     conversations = db.get_conversations(model_id, limit=limit)
     return jsonify(conversations)
 
+@app.route('/api/models/<int:model_id>/portfolio-metrics', methods=['GET'])
+def get_portfolio_metrics(model_id):
+    """Get aggregated portfolio metrics for dashboard"""
+    try:
+        # Get current portfolio
+        prices_data = market_fetcher.get_current_prices(['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE'])
+        current_prices = {coin: prices_data[coin]['price'] for coin in prices_data}
+        portfolio = db.get_portfolio(model_id, current_prices)
+
+        # Get model data
+        model = db.get_model(model_id)
+        if not model:
+            return jsonify({'error': 'Model not found'}), 404
+
+        initial_capital = model['initial_capital']
+        total_value = portfolio.get('total_value', initial_capital)
+
+        # Calculate total P&L
+        total_pnl = total_value - initial_capital
+        total_pnl_pct = (total_pnl / initial_capital * 100) if initial_capital > 0 else 0
+
+        # Get trades for win rate and today's P&L
+        all_trades = enhanced_db.get_trades(model_id, limit=1000)
+
+        # Calculate win rate
+        profitable_trades = [t for t in all_trades if t.get('pnl', 0) > 0]
+        total_trades_count = len(all_trades)
+        win_rate = (len(profitable_trades) / total_trades_count * 100) if total_trades_count > 0 else 0
+
+        # Calculate today's P&L
+        from datetime import datetime, timedelta
+        today = datetime.now().date()
+        today_trades = [t for t in all_trades if datetime.fromisoformat(t['timestamp'].replace('Z', '+00:00')).date() == today]
+        today_pnl = sum(t.get('pnl', 0) for t in today_trades)
+        today_pnl_pct = (today_pnl / initial_capital * 100) if initial_capital > 0 else 0
+
+        # Count open positions
+        positions = portfolio.get('positions', [])
+        open_positions = len(positions)
+        positions_value = sum(p.get('value', 0) for p in positions)
+
+        # Calculate yesterday's value for change
+        history = db.get_account_value_history(model_id, limit=2)
+        yesterday_value = history[1]['value'] if len(history) > 1 else initial_capital
+        value_change = total_value - yesterday_value
+        value_change_pct = (value_change / yesterday_value * 100) if yesterday_value > 0 else 0
+
+        return jsonify({
+            'total_value': total_value,
+            'value_change': value_change,
+            'value_change_pct': value_change_pct,
+            'total_pnl': total_pnl,
+            'total_pnl_pct': total_pnl_pct,
+            'today_pnl': today_pnl,
+            'today_pnl_pct': today_pnl_pct,
+            'win_rate': win_rate,
+            'wins': len(profitable_trades),
+            'total_trades': total_trades_count,
+            'open_positions': open_positions,
+            'positions_value': positions_value,
+            'initial_capital': initial_capital
+        })
+    except Exception as e:
+        import traceback
+        print(f"[ERROR] Portfolio metrics failed: {traceback.format_exc()}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/portfolio-history', methods=['GET'])
+def get_portfolio_history(model_id):
+    """Get portfolio value history for chart"""
+    try:
+        time_range = request.args.get('range', '24h')
+
+        # Determine limit based on time range
+        limits = {
+            '1h': 12,      # 5-minute intervals
+            '24h': 96,     # 15-minute intervals
+            '7d': 168,     # Hourly
+            '30d': 720,    # Every 4 hours
+            '90d': 2160,   # Every 4 hours
+            'all': 10000   # All data
+        }
+
+        limit = limits.get(time_range, 96)
+
+        # Get account value history
+        history = db.get_account_value_history(model_id, limit=limit)
+
+        # Format for ECharts
+        chart_data = {
+            'timestamps': [h['timestamp'] for h in history],
+            'values': [h['value'] for h in history],
+            'range': time_range
+        }
+
+        return jsonify(chart_data)
+    except Exception as e:
+        import traceback
+        print(f"[ERROR] Portfolio history failed: {traceback.format_exc()}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/aggregated/portfolio', methods=['GET'])
 def get_aggregated_portfolio():
     """Get aggregated portfolio data across all models"""

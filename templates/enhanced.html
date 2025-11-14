@@ -6,6 +6,7 @@
     <title>Personal Trading System - Enhanced Dashboard</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="/static/enhanced.css">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -71,6 +72,219 @@
                     <select id="modelSelect" class="form-select">
                         <option value="">Loading models...</option>
                     </select>
+                </div>
+            </div>
+
+            <!-- Market Prices Ticker -->
+            <div class="market-ticker-container">
+                <div class="market-ticker" id="marketTicker">
+                    <div class="ticker-item">Loading market data...</div>
+                </div>
+            </div>
+
+            <!-- Portfolio Overview - Hero Section -->
+            <div class="section">
+                <div class="section-header">
+                    <h2>📊 Portfolio Overview</h2>
+                </div>
+                <div class="portfolio-metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-label">Total Value</div>
+                        <div class="metric-value" id="totalValue">$0.00</div>
+                        <div class="metric-change" id="totalValueChange">--</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Total P&L</div>
+                        <div class="metric-value" id="totalPnL">$0.00</div>
+                        <div class="metric-change" id="totalPnLPercent">--</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Today's P&L</div>
+                        <div class="metric-value" id="todayPnL">$0.00</div>
+                        <div class="metric-change" id="todayPnLPercent">--</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Win Rate</div>
+                        <div class="metric-value" id="winRate">0%</div>
+                        <div class="metric-subtitle" id="winRateDetails">0 wins / 0 trades</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Total Trades</div>
+                        <div class="metric-value" id="totalTrades">0</div>
+                        <div class="metric-subtitle" id="tradesBreakdown">--</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Open Positions</div>
+                        <div class="metric-value" id="openPositionsCount">0</div>
+                        <div class="metric-subtitle" id="positionsValue">$0.00</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Portfolio Value Chart -->
+            <div class="section">
+                <div class="section-header">
+                    <h2>Portfolio Value Over Time</h2>
+                    <div class="chart-controls">
+                        <button class="time-range-btn active" data-range="24h">24H</button>
+                        <button class="time-range-btn" data-range="7d">7D</button>
+                        <button class="time-range-btn" data-range="30d">30D</button>
+                        <button class="time-range-btn" data-range="90d">90D</button>
+                        <button class="time-range-btn" data-range="all">ALL</button>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <div id="portfolioChart" style="width: 100%; height: 400px;"></div>
+                </div>
+            </div>
+
+            <!-- Two Column Layout: Positions & Trade History -->
+            <div class="section">
+                <div class="dashboard-two-column">
+                    <!-- Left Column: Tables -->
+                    <div class="dashboard-left">
+                        <!-- Current Positions -->
+                        <div class="data-section">
+                            <div class="section-header">
+                                <h3>📈 Current Positions</h3>
+                            </div>
+                            <div class="table-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Coin</th>
+                                            <th>Amount</th>
+                                            <th>Avg Buy</th>
+                                            <th>Current</th>
+                                            <th>P&L</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="positionsTableBody">
+                                        <tr><td colspan="6" class="empty-state">No open positions</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Trade History -->
+                        <div class="data-section">
+                            <div class="section-header">
+                                <h3>📜 Trade History</h3>
+                                <div class="header-actions">
+                                    <button class="btn-secondary btn-small" id="exportTradesBtn">
+                                        <i class="bi bi-download"></i> Export
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="table-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Coin</th>
+                                            <th>Action</th>
+                                            <th>Amount</th>
+                                            <th>Price</th>
+                                            <th>P&L</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tradesTableBody">
+                                        <tr><td colspan="6" class="empty-state">No trades yet</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="table-pagination" id="tradesPagination">
+                                <button class="btn-secondary btn-small" id="prevPageBtn">← Previous</button>
+                                <span class="pagination-info" id="paginationInfo">Page 1 of 1</span>
+                                <button class="btn-secondary btn-small" id="nextPageBtn">Next →</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Risk & Decisions -->
+                    <div class="dashboard-right">
+                        <!-- Risk Status (moved from below) -->
+                        <div class="data-section">
+                            <div class="section-header">
+                                <h3>Risk Status</h3>
+                            </div>
+                            <div class="risk-grid-compact" id="riskGridCompact">
+                                <div class="risk-card-compact">
+                                    <div class="risk-label">Position Size</div>
+                                    <div class="risk-value" id="riskPositionSize">--</div>
+                                    <div class="risk-status status-ok" id="statusPositionSize">OK</div>
+                                </div>
+                                <div class="risk-card-compact">
+                                    <div class="risk-label">Daily Loss</div>
+                                    <div class="risk-value" id="riskDailyLoss">--</div>
+                                    <div class="risk-status status-ok" id="statusDailyLoss">OK</div>
+                                </div>
+                                <div class="risk-card-compact">
+                                    <div class="risk-label">Open Positions</div>
+                                    <div class="risk-value" id="riskOpenPositions">--</div>
+                                    <div class="risk-status status-ok" id="statusOpenPositions">OK</div>
+                                </div>
+                                <div class="risk-card-compact">
+                                    <div class="risk-label">Cash Reserve</div>
+                                    <div class="risk-value" id="riskCashReserve">--</div>
+                                    <div class="risk-status status-ok" id="statusCashReserve">OK</div>
+                                </div>
+                                <div class="risk-card-compact">
+                                    <div class="risk-label">Daily Trades</div>
+                                    <div class="risk-value" id="riskDailyTrades">--</div>
+                                    <div class="risk-status status-ok" id="statusDailyTrades">OK</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Pending Decisions (keep existing) -->
+                        <div class="data-section">
+                            <div class="section-header">
+                                <h3>Pending Decisions</h3>
+                                <span class="badge" id="pendingCount">0</span>
+                            </div>
+                            <div id="pendingDecisionsContainer">
+                                <div class="empty-state">
+                                    <i class="bi bi-inbox"></i>
+                                    <p>No pending decisions</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- AI Conversations (NEW) -->
+                        <div class="data-section">
+                            <div class="section-header">
+                                <h3>💬 AI Conversations</h3>
+                                <button class="btn-icon" id="toggleConversations">
+                                    <i class="bi bi-chevron-down"></i>
+                                </button>
+                            </div>
+                            <div id="conversationsContainer" class="conversations-container">
+                                <div class="empty-state">
+                                    <i class="bi bi-chat-dots"></i>
+                                    <p>No conversations yet</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions (moved up, before trading settings) -->
+            <div class="section">
+                <div class="section-header">
+                    <h2>Quick Actions</h2>
+                </div>
+                <div class="action-buttons">
+                    <button class="btn-primary" id="executeTradingBtn">
+                        <i class="bi bi-play-circle"></i>
+                        Execute Trading Cycle
+                    </button>
+                    <button class="btn-secondary" id="pauseModelBtn">
+                        <i class="bi bi-pause-circle"></i>
+                        Emergency Pause
+                    </button>
                 </div>
             </div>
 
@@ -148,86 +362,6 @@
                 </div>
             </div>
 
-            <!-- Risk Status -->
-            <div class="section">
-                <div class="section-header">
-                    <h2>Risk Status</h2>
-                </div>
-                <div class="risk-grid" id="riskGrid">
-                    <div class="risk-card">
-                        <div class="risk-label">Position Size</div>
-                        <div class="risk-value" id="riskPositionSize">--</div>
-                        <div class="risk-status status-ok" id="statusPositionSize">OK</div>
-                    </div>
-                    <div class="risk-card">
-                        <div class="risk-label">Daily Loss</div>
-                        <div class="risk-value" id="riskDailyLoss">--</div>
-                        <div class="risk-status status-ok" id="statusDailyLoss">OK</div>
-                    </div>
-                    <div class="risk-card">
-                        <div class="risk-label">Open Positions</div>
-                        <div class="risk-value" id="riskOpenPositions">--</div>
-                        <div class="risk-status status-ok" id="statusOpenPositions">OK</div>
-                    </div>
-                    <div class="risk-card">
-                        <div class="risk-label">Cash Reserve</div>
-                        <div class="risk-value" id="riskCashReserve">--</div>
-                        <div class="risk-status status-ok" id="statusCashReserve">OK</div>
-                    </div>
-                    <div class="risk-card">
-                        <div class="risk-label">Daily Trades</div>
-                        <div class="risk-value" id="riskDailyTrades">--</div>
-                        <div class="risk-status status-ok" id="statusDailyTrades">OK</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Pending Decisions -->
-            <div class="section">
-                <div class="section-header">
-                    <h2>Pending Decisions</h2>
-                    <span class="badge" id="pendingCount">0</span>
-                </div>
-                <div id="pendingDecisionsContainer">
-                    <div class="empty-state">
-                        <i class="bi bi-inbox"></i>
-                        <p>No pending decisions</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Trending Market Data -->
-            <div class="section">
-                <div class="section-header">
-                    <h2>Trending Cryptocurrencies</h2>
-                    <button class="btn-icon" id="refreshTrendingBtn" title="Refresh">
-                        <i class="bi bi-arrow-clockwise"></i>
-                    </button>
-                </div>
-                <div class="trending-grid" id="trendingGrid">
-                    <div class="empty-state">
-                        <i class="bi bi-graph-up"></i>
-                        <p>Loading market data...</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Quick Actions -->
-            <div class="section">
-                <div class="section-header">
-                    <h2>Actions</h2>
-                </div>
-                <div class="action-buttons">
-                    <button class="btn-primary" id="executeTradingBtn">
-                        <i class="bi bi-play-circle"></i>
-                        Execute Trading Cycle
-                    </button>
-                    <button class="btn-secondary" id="pauseModelBtn">
-                        <i class="bi bi-pause-circle"></i>
-                        Emergency Pause
-                    </button>
-                </div>
-            </div>
         </div>
 
         <!-- Page: Settings -->
