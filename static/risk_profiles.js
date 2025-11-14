@@ -2,7 +2,7 @@
 //      Risk Profiles Management - Complete JavaScript UI
 // ===================================================
 
-let currentModelId = null;
+// Note: currentModelId is defined in enhanced.js, so we don't redeclare it here
 let allRiskProfiles = [];
 let activeProfileId = null;
 
@@ -532,7 +532,11 @@ async function createCustomProfile() {
 }
 
 // Helper: Get current model ID from dropdown
+// Note: Use window.currentModelId if available from enhanced.js, otherwise get from select
 function getCurrentModelId() {
+    if (typeof window.currentModelId !== 'undefined' && window.currentModelId) {
+        return window.currentModelId;
+    }
     const select = document.getElementById('modelSelect');
     return select ? parseInt(select.value) : null;
 }
