@@ -1002,15 +1002,21 @@ def reject_pending_decision(decision_id):
 def get_risk_status(model_id):
     """Get current risk status for a model"""
     try:
+        # Check if model exists first
+        model = enhanced_db.get_model(model_id)
+        if not model:
+            return jsonify({'error': f'Model {model_id} not found'}), 404
+
         init_enhanced_components(model_id)
 
         # Get portfolio
         prices_data = market_fetcher.get_current_prices(['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE'])
         portfolio = enhanced_db.get_portfolio(model_id, prices_data)
 
-        # Get settings
+        # Get settings (with defaults if not set)
         settings = enhanced_db.get_model_settings(model_id)
-        model = enhanced_db.get_model(model_id)
+        if not settings:
+            settings = {}
 
         # Calculate risk metrics
         total_value = portfolio['total_value']
@@ -1069,7 +1075,11 @@ def get_risk_status(model_id):
 
         return jsonify(risk_status)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"[ERROR] Risk status endpoint failed for model {model_id}:")
+        print(error_trace)
+        return jsonify({'error': str(e), 'details': error_trace}), 500
 
 # -------- Risk Profiles Management --------
 

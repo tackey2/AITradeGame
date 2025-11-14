@@ -299,7 +299,20 @@ function formatAutomationName(automation) {
 async function loadRiskStatus() {
     try {
         const response = await fetch(`/api/models/${currentModelId}/risk-status`);
+
+        if (!response.ok) {
+            console.warn('Risk status endpoint returned error:', response.status);
+            // Don't show error to user, just skip updating risk cards
+            return;
+        }
+
         const risk = await response.json();
+
+        // Check if response contains error
+        if (risk.error) {
+            console.warn('Risk status error:', risk.error);
+            return;
+        }
 
         // Update each risk card
         updateRiskCard('PositionSize', risk.position_size);
@@ -309,6 +322,7 @@ async function loadRiskStatus() {
         updateRiskCard('DailyTrades', risk.daily_trades);
     } catch (error) {
         console.error('Failed to load risk status:', error);
+        // Don't block page loading
     }
 }
 
