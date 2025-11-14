@@ -119,14 +119,12 @@ def fetch_provider_models():
         return jsonify({'error': 'API URL and key are required'}), 400
 
     try:
-        # This is a placeholder - implement actual API call based on provider
-        # For now, return empty list or common models
+        import requests
         models = []
 
         # Try to detect provider type and call appropriate API
         if 'openai.com' in api_url.lower():
             # OpenAI API call
-            import requests
             headers = {
                 'Authorization': f'Bearer {api_key}',
                 'Content-Type': 'application/json'
@@ -137,7 +135,6 @@ def fetch_provider_models():
                 models = [m['id'] for m in result.get('data', []) if 'gpt' in m['id'].lower()]
         elif 'deepseek' in api_url.lower():
             # DeepSeek API
-            import requests
             headers = {
                 'Authorization': f'Bearer {api_key}',
                 'Content-Type': 'application/json'
@@ -146,9 +143,38 @@ def fetch_provider_models():
             if response.status_code == 200:
                 result = response.json()
                 models = [m['id'] for m in result.get('data', [])]
+        elif 'openrouter.ai' in api_url.lower():
+            # OpenRouter API - fetch available models
+            headers = {
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json'
+            }
+            response = requests.get('https://openrouter.ai/api/v1/models', headers=headers, timeout=10)
+            if response.status_code == 200:
+                result = response.json()
+                models = [m['id'] for m in result.get('data', [])]
         else:
-            # Default: return common model names
-            models = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo']
+            # Generic OpenAI-compatible API
+            headers = {
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json'
+            }
+            # Try standard /models endpoint
+            try:
+                response = requests.get(f'{api_url}/models', headers=headers, timeout=10)
+                if response.status_code == 200:
+                    result = response.json()
+                    if 'data' in result:
+                        models = [m['id'] for m in result.get('data', [])]
+                    else:
+                        # Fallback to common model names
+                        models = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo']
+                else:
+                    # Fallback to common model names
+                    models = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo']
+            except:
+                # Fallback to common model names
+                models = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo']
 
         return jsonify({'models': models})
     except Exception as e:

@@ -819,11 +819,20 @@
                     <div class="form-group">
                         <label>
                             AI Model *
-                            <span class="help-icon" title="Select which AI model to use (e.g., gpt-4, claude-3.5-sonnet)">
+                            <span class="help-icon" title="Select which AI model to use (e.g., gpt-4, claude-3.5-sonnet). Click 'Load Models' to fetch available models from your selected provider.">
                                 <i class="bi bi-question-circle"></i>
                             </span>
                         </label>
-                        <input type="text" id="modelAiModel" class="form-input" placeholder="e.g., gpt-4-turbo, anthropic/claude-3.5-sonnet" required>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="modelAiModel" class="form-input" list="availableModelsList" placeholder="e.g., gpt-4-turbo, anthropic/claude-3.5-sonnet" required style="flex: 1;">
+                            <button type="button" class="btn-secondary" id="loadModelsBtn" style="white-space: nowrap;">
+                                <i class="bi bi-cloud-download"></i>
+                                Load Models
+                            </button>
+                        </div>
+                        <datalist id="availableModelsList">
+                        </datalist>
+                        <small class="form-help" id="modelLoadStatus" style="display: none; color: var(--color-success);"></small>
                     </div>
 
                     <div class="form-group">

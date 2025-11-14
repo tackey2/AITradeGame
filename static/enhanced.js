@@ -1289,6 +1289,75 @@ function initModelManagement() {
     document.getElementById('closeModelModal')?.addEventListener('click', () => {
         closeModelModal();
     });
+
+    document.getElementById('loadModelsBtn')?.addEventListener('click', async () => {
+        await loadAvailableModels();
+    });
+}
+
+async function loadAvailableModels() {
+    const providerId = document.getElementById('modelProvider').value;
+
+    if (!providerId) {
+        showToast('Please select an AI provider first', 'error');
+        return;
+    }
+
+    // Find the selected provider
+    const provider = providers.find(p => p.id === parseInt(providerId));
+    if (!provider) {
+        showToast('Provider not found', 'error');
+        return;
+    }
+
+    const loadBtn = document.getElementById('loadModelsBtn');
+    const statusText = document.getElementById('modelLoadStatus');
+    const datalist = document.getElementById('availableModelsList');
+
+    try {
+        // Show loading state
+        loadBtn.disabled = true;
+        loadBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Loading...';
+        statusText.style.display = 'none';
+
+        const response = await fetch('/api/providers/models', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                api_url: provider.api_url,
+                api_key: provider.api_key
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to fetch models');
+        }
+
+        const result = await response.json();
+        const modelsList = result.models || [];
+
+        // Populate datalist
+        datalist.innerHTML = modelsList.map(model => `<option value="${model}">`).join('');
+
+        // Show success message
+        statusText.textContent = `✓ Loaded ${modelsList.length} models`;
+        statusText.style.display = 'block';
+        statusText.style.color = 'var(--color-success)';
+
+        showToast(`Loaded ${modelsList.length} available models`, 'success');
+
+    } catch (error) {
+        console.error('Error loading available models:', error);
+        statusText.textContent = `✗ ${error.message}`;
+        statusText.style.display = 'block';
+        statusText.style.color = 'var(--color-danger)';
+        showToast(`Failed to load models: ${error.message}`, 'error');
+    } finally {
+        // Restore button
+        loadBtn.disabled = false;
+        loadBtn.innerHTML = '<i class="bi bi-cloud-download"></i> Load Models';
+    }
 }
 
 async function loadModelsConfig() {
