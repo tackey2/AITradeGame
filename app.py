@@ -404,6 +404,194 @@ def get_portfolio_history(model_id):
         print(f"[ERROR] Portfolio history failed: {traceback.format_exc()}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/models/<int:model_id>/asset-allocation', methods=['GET'])
+def get_asset_allocation(model_id):
+    """Get current asset allocation for donut chart"""
+    try:
+        # Get current market prices
+        prices_data = market_fetcher.get_current_prices(['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE'])
+        current_prices = {coin: prices_data[coin]['price'] for coin in prices_data}
+
+        # Get portfolio
+        portfolio = db.get_portfolio(model_id, current_prices)
+
+        # Get model data
+        model = enhanced_db.get_model(model_id)
+        if not model:
+            return jsonify({'error': 'Model not found'}), 404
+
+        # Calculate allocation
+        allocations = []
+        positions = portfolio.get('positions', [])
+        cash = portfolio.get('cash', model['initial_capital'])
+        total_value = portfolio.get('total_value', model['initial_capital'])
+
+        # Add cash allocation
+        if cash > 0:
+            allocations.append({
+                'name': 'Cash (USDT)',
+                'value': cash,
+                'percentage': (cash / total_value * 100) if total_value > 0 else 0,
+                'color': '#3B82F6'  # Blue for cash
+            })
+
+        # Add position allocations
+        colors = ['#10B981', '#F59E0B', '#8B5CF6', '#EF4444', '#06B6D4', '#F97316']
+        for i, pos in enumerate(positions):
+            if pos.get('value', 0) > 0:
+                allocations.append({
+                    'name': pos['coin'],
+                    'value': pos['value'],
+                    'percentage': (pos['value'] / total_value * 100) if total_value > 0 else 0,
+                    'amount': pos['amount'],
+                    'price': pos['current_price'],
+                    'color': colors[i % len(colors)]
+                })
+
+        return jsonify({
+            'allocations': allocations,
+            'total_value': total_value,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        import traceback
+        print(f"[ERROR] Asset allocation failed: {traceback.format_exc()}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/performance-analytics', methods=['GET'])
+def get_performance_analytics(model_id):
+    """Get detailed performance analytics including Sharpe ratio, drawdown, streaks, etc."""
+    try:
+        import numpy as np
+
+        # Get all trades for this model
+        trades = enhanced_db.get_trades(model_id, limit=10000)
+
+        # Get model data
+        model = enhanced_db.get_model(model_id)
+        if not model:
+            return jsonify({'error': 'Model not found'}), 404
+
+        initial_capital = model['initial_capital']
+
+        # Initialize default values
+        analytics = {
+            'sharpe_ratio': 0,
+            'max_drawdown': 0,
+            'max_drawdown_pct': 0,
+            'win_streak': 0,
+            'current_win_streak': 0,
+            'loss_streak': 0,
+            'current_loss_streak': 0,
+            'best_trade': 0,
+            'best_trade_pct': 0,
+            'worst_trade': 0,
+            'worst_trade_pct': 0,
+            'avg_win': 0,
+            'avg_loss': 0,
+            'profit_factor': 0,
+            'total_trades': len(trades)
+        }
+
+        if len(trades) == 0:
+            return jsonify(analytics)
+
+        # Separate winning and losing trades
+        winning_trades = [t for t in trades if t.get('pnl', 0) > 0]
+        losing_trades = [t for t in trades if t.get('pnl', 0) < 0]
+
+        # Calculate best and worst trades
+        if trades:
+            pnls = [t.get('pnl', 0) for t in trades]
+            analytics['best_trade'] = max(pnls)
+            analytics['worst_trade'] = min(pnls)
+
+            # Best/worst trade percentages
+            if trades:
+                for t in trades:
+                    if t.get('pnl', 0) == analytics['best_trade']:
+                        analytics['best_trade_pct'] = (t.get('pnl', 0) / initial_capital * 100)
+                    if t.get('pnl', 0) == analytics['worst_trade']:
+                        analytics['worst_trade_pct'] = (t.get('pnl', 0) / initial_capital * 100)
+
+        # Calculate average win/loss
+        if winning_trades:
+            analytics['avg_win'] = sum(t.get('pnl', 0) for t in winning_trades) / len(winning_trades)
+        if losing_trades:
+            analytics['avg_loss'] = sum(t.get('pnl', 0) for t in losing_trades) / len(losing_trades)
+
+        # Calculate profit factor (gross profit / gross loss)
+        gross_profit = sum(t.get('pnl', 0) for t in winning_trades)
+        gross_loss = abs(sum(t.get('pnl', 0) for t in losing_trades))
+        if gross_loss > 0:
+            analytics['profit_factor'] = gross_profit / gross_loss
+
+        # Calculate win/loss streaks
+        current_streak = 0
+        max_win_streak = 0
+        max_loss_streak = 0
+        last_was_win = None
+
+        for trade in trades:
+            pnl = trade.get('pnl', 0)
+            is_win = pnl > 0
+
+            if last_was_win is None or last_was_win == is_win:
+                current_streak += 1
+            else:
+                if last_was_win:
+                    max_win_streak = max(max_win_streak, current_streak)
+                else:
+                    max_loss_streak = max(max_loss_streak, current_streak)
+                current_streak = 1
+
+            last_was_win = is_win
+
+        # Final streak check
+        if last_was_win:
+            max_win_streak = max(max_win_streak, current_streak)
+            analytics['current_win_streak'] = current_streak
+        else:
+            max_loss_streak = max(max_loss_streak, current_streak)
+            analytics['current_loss_streak'] = current_streak
+
+        analytics['win_streak'] = max_win_streak
+        analytics['loss_streak'] = max_loss_streak
+
+        # Calculate Sharpe Ratio (simplified - using trade returns)
+        if len(trades) > 1:
+            returns = [(t.get('pnl', 0) / initial_capital) for t in trades]
+            if returns:
+                mean_return = np.mean(returns)
+                std_return = np.std(returns)
+                if std_return > 0:
+                    # Annualized Sharpe (assuming 252 trading days)
+                    analytics['sharpe_ratio'] = (mean_return / std_return) * np.sqrt(252)
+
+        # Calculate Maximum Drawdown
+        # Get account value history
+        history = db.get_account_value_history(model_id, limit=10000)
+        if history:
+            values = [h['value'] for h in history]
+            peak = values[0]
+            max_dd = 0
+
+            for value in values:
+                if value > peak:
+                    peak = value
+                dd = peak - value
+                if dd > max_dd:
+                    max_dd = dd
+
+            analytics['max_drawdown'] = max_dd
+            analytics['max_drawdown_pct'] = (max_dd / peak * 100) if peak > 0 else 0
+
+        return jsonify(analytics)
+    except Exception as e:
+        import traceback
+        print(f"[ERROR] Performance analytics failed: {traceback.format_exc()}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/models/all-summary', methods=['GET'])
 def get_all_models_summary():
     """Get comprehensive summary of all models for the Models page"""

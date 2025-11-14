@@ -142,6 +142,113 @@
                 </div>
             </div>
 
+            <!-- Asset Allocation & Performance Analytics -->
+            <div class="section">
+                <div class="analytics-grid">
+                    <!-- Asset Allocation Donut Chart -->
+                    <div class="analytics-card">
+                        <div class="analytics-card-header">
+                            <h3>🥧 Asset Allocation</h3>
+                            <div class="analytics-info">
+                                <span id="allocationTimestamp">--</span>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <div id="assetAllocationChart" style="width: 100%; height: 350px;"></div>
+                        </div>
+                        <div class="allocation-legend" id="allocationLegend">
+                            <!-- Legend items will be added dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Performance Metrics -->
+                    <div class="analytics-card">
+                        <div class="analytics-card-header">
+                            <h3>📈 Performance Analytics</h3>
+                            <div class="analytics-info">
+                                <button class="btn-icon" id="refreshAnalyticsBtn" title="Refresh Analytics">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="performance-metrics-grid">
+                            <div class="perf-metric-card">
+                                <div class="perf-metric-icon">📊</div>
+                                <div class="perf-metric-content">
+                                    <div class="perf-metric-label">Sharpe Ratio</div>
+                                    <div class="perf-metric-value" id="sharpeRatio">--</div>
+                                    <div class="perf-metric-desc">Risk-adjusted return</div>
+                                </div>
+                            </div>
+                            <div class="perf-metric-card">
+                                <div class="perf-metric-icon">📉</div>
+                                <div class="perf-metric-content">
+                                    <div class="perf-metric-label">Max Drawdown</div>
+                                    <div class="perf-metric-value" id="maxDrawdown">--</div>
+                                    <div class="perf-metric-desc">Peak to trough decline</div>
+                                </div>
+                            </div>
+                            <div class="perf-metric-card">
+                                <div class="perf-metric-icon">🔥</div>
+                                <div class="perf-metric-content">
+                                    <div class="perf-metric-label">Win Streak</div>
+                                    <div class="perf-metric-value" id="winStreak">--</div>
+                                    <div class="perf-metric-desc">Consecutive wins</div>
+                                </div>
+                            </div>
+                            <div class="perf-metric-card">
+                                <div class="perf-metric-icon">❄️</div>
+                                <div class="perf-metric-content">
+                                    <div class="perf-metric-label">Loss Streak</div>
+                                    <div class="perf-metric-value" id="lossStreak">--</div>
+                                    <div class="perf-metric-desc">Consecutive losses</div>
+                                </div>
+                            </div>
+                            <div class="perf-metric-card">
+                                <div class="perf-metric-icon">🏆</div>
+                                <div class="perf-metric-content">
+                                    <div class="perf-metric-label">Best Trade</div>
+                                    <div class="perf-metric-value" id="bestTrade">--</div>
+                                    <div class="perf-metric-desc">Highest P&L</div>
+                                </div>
+                            </div>
+                            <div class="perf-metric-card">
+                                <div class="perf-metric-icon">💔</div>
+                                <div class="perf-metric-content">
+                                    <div class="perf-metric-label">Worst Trade</div>
+                                    <div class="perf-metric-value" id="worstTrade">--</div>
+                                    <div class="perf-metric-desc">Lowest P&L</div>
+                                </div>
+                            </div>
+                            <div class="perf-metric-card">
+                                <div class="perf-metric-icon">💰</div>
+                                <div class="perf-metric-content">
+                                    <div class="perf-metric-label">Avg Win</div>
+                                    <div class="perf-metric-value" id="avgWin">--</div>
+                                    <div class="perf-metric-desc">Mean winning trade</div>
+                                </div>
+                            </div>
+                            <div class="perf-metric-card">
+                                <div class="perf-metric-icon">💸</div>
+                                <div class="perf-metric-content">
+                                    <div class="perf-metric-label">Avg Loss</div>
+                                    <div class="perf-metric-value" id="avgLoss">--</div>
+                                    <div class="perf-metric-desc">Mean losing trade</div>
+                                </div>
+                            </div>
+                            <div class="perf-metric-card">
+                                <div class="perf-metric-icon">⚖️</div>
+                                <div class="perf-metric-content">
+                                    <div class="perf-metric-label">Profit Factor</div>
+                                    <div class="perf-metric-value" id="profitFactor">--</div>
+                                    <div class="perf-metric-desc">Wins / Losses ratio</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Two Column Layout: Positions & Trade History -->
             <div class="section">
                 <div class="dashboard-two-column">
@@ -263,6 +370,25 @@
                                 <button class="btn-icon" id="toggleConversations">
                                     <i class="bi bi-chevron-down"></i>
                                 </button>
+                            </div>
+                            <!-- Conversation Controls -->
+                            <div class="conversation-controls">
+                                <div class="conversation-search">
+                                    <i class="bi bi-search"></i>
+                                    <input type="text" id="conversationSearch" placeholder="Search conversations..." class="search-input">
+                                </div>
+                                <div class="conversation-filters">
+                                    <select id="conversationFilter" class="filter-select">
+                                        <option value="all">All</option>
+                                        <option value="buy">Buy</option>
+                                        <option value="sell">Sell</option>
+                                        <option value="hold">Hold</option>
+                                    </select>
+                                    <select id="conversationSort" class="filter-select">
+                                        <option value="newest">Newest First</option>
+                                        <option value="oldest">Oldest First</option>
+                                    </select>
+                                </div>
                             </div>
                             <div id="conversationsContainer" class="conversations-container">
                                 <div class="empty-state">
