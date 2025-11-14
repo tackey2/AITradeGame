@@ -299,7 +299,20 @@ function formatAutomationName(automation) {
 async function loadRiskStatus() {
     try {
         const response = await fetch(`/api/models/${currentModelId}/risk-status`);
+
+        if (!response.ok) {
+            console.warn('Risk status endpoint returned error:', response.status);
+            // Don't show error to user, just skip updating risk cards
+            return;
+        }
+
         const risk = await response.json();
+
+        // Check if response contains error
+        if (risk.error) {
+            console.warn('Risk status error:', risk.error);
+            return;
+        }
 
         // Update each risk card
         updateRiskCard('PositionSize', risk.position_size);
@@ -309,6 +322,7 @@ async function loadRiskStatus() {
         updateRiskCard('DailyTrades', risk.daily_trades);
     } catch (error) {
         console.error('Failed to load risk status:', error);
+        // Don't block page loading
     }
 }
 
@@ -1289,6 +1303,75 @@ function initModelManagement() {
     document.getElementById('closeModelModal')?.addEventListener('click', () => {
         closeModelModal();
     });
+
+    document.getElementById('loadModelsBtn')?.addEventListener('click', async () => {
+        await loadAvailableModels();
+    });
+}
+
+async function loadAvailableModels() {
+    const providerId = document.getElementById('modelProvider').value;
+
+    if (!providerId) {
+        showToast('Please select an AI provider first', 'error');
+        return;
+    }
+
+    // Find the selected provider
+    const provider = providers.find(p => p.id === parseInt(providerId));
+    if (!provider) {
+        showToast('Provider not found', 'error');
+        return;
+    }
+
+    const loadBtn = document.getElementById('loadModelsBtn');
+    const statusText = document.getElementById('modelLoadStatus');
+    const datalist = document.getElementById('availableModelsList');
+
+    try {
+        // Show loading state
+        loadBtn.disabled = true;
+        loadBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Loading...';
+        statusText.style.display = 'none';
+
+        const response = await fetch('/api/providers/models', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                api_url: provider.api_url,
+                api_key: provider.api_key
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to fetch models');
+        }
+
+        const result = await response.json();
+        const modelsList = result.models || [];
+
+        // Populate datalist
+        datalist.innerHTML = modelsList.map(model => `<option value="${model}">`).join('');
+
+        // Show success message
+        statusText.textContent = `✓ Loaded ${modelsList.length} models`;
+        statusText.style.display = 'block';
+        statusText.style.color = 'var(--color-success)';
+
+        showToast(`Loaded ${modelsList.length} available models`, 'success');
+
+    } catch (error) {
+        console.error('Error loading available models:', error);
+        statusText.textContent = `✗ ${error.message}`;
+        statusText.style.display = 'block';
+        statusText.style.color = 'var(--color-danger)';
+        showToast(`Failed to load models: ${error.message}`, 'error');
+    } finally {
+        // Restore button
+        loadBtn.disabled = false;
+        loadBtn.innerHTML = '<i class="bi bi-cloud-download"></i> Load Models';
+    }
 }
 
 async function loadModelsConfig() {
@@ -1523,3 +1606,1189 @@ function initPasswordToggles() {
         });
     });
 }
+
+// ========================================
+// NEW DASHBOARD FEATURES - Session 1
+// ========================================
+
+// Global variables for dashboard
+let portfolioChart = null;
+let currentTimeRange = '24h';
+let tradesCurrentPage = 1;
+let tradesPerPage = 10;
+let autoRefreshIntervals = {};
+
+// Load Portfolio Metrics
+async function loadPortfolioMetrics() {
+    if (!currentModelId) return;
+
+    try {
+        const response = await fetch(`/api/models/${currentModelId}/portfolio-metrics`);
+        if (!response.ok) {
+            console.warn('Portfolio metrics endpoint failed:', response.status);
+            return;
+        }
+
+        const metrics = await response.json();
+
+        // Update Total Value
+        document.getElementById('totalValue').textContent = formatCurrency(metrics.total_value);
+        updateMetricChange('totalValueChange', metrics.value_change, metrics.value_change_pct);
+
+        // Update Total P&L
+        document.getElementById('totalPnL').textContent = formatCurrency(metrics.total_pnl);
+        document.getElementById('totalPnLPercent').textContent = formatPercent(metrics.total_pnl_pct);
+        document.getElementById('totalPnLPercent').className = `metric-change ${metrics.total_pnl >= 0 ? 'positive' : 'negative'}`;
+
+        // Update Today's P&L
+        document.getElementById('todayPnL').textContent = formatCurrency(metrics.today_pnl);
+        document.getElementById('todayPnLPercent').textContent = formatPercent(metrics.today_pnl_pct);
+        document.getElementById('todayPnLPercent').className = `metric-change ${metrics.today_pnl >= 0 ? 'positive' : 'negative'}`;
+
+        // Update Win Rate
+        document.getElementById('winRate').textContent = `${metrics.win_rate.toFixed(1)}%`;
+        document.getElementById('winRateDetails').textContent = `${metrics.wins} wins / ${metrics.total_trades} trades`;
+
+        // Update Total Trades
+        document.getElementById('totalTrades').textContent = metrics.total_trades;
+        document.getElementById('tradesBreakdown').textContent = `${metrics.wins} wins, ${metrics.total_trades - metrics.wins} losses`;
+
+        // Update Open Positions
+        document.getElementById('openPositionsCount').textContent = metrics.open_positions;
+        document.getElementById('positionsValue').textContent = formatCurrency(metrics.positions_value);
+
+    } catch (error) {
+        console.error('Failed to load portfolio metrics:', error);
+    }
+}
+
+// Helper to update metric change display
+function updateMetricChange(elementId, value, percent) {
+    const el = document.getElementById(elementId);
+    const sign = value >= 0 ? '+' : '';
+    el.textContent = `${sign}${formatCurrency(value)} (${sign}${percent.toFixed(2)}%)`;
+    el.className = `metric-change ${value >= 0 ? 'positive' : 'negative'}`;
+}
+
+// Initialize Portfolio Chart
+async function initPortfolioChart() {
+    if (!currentModelId) return;
+
+    // Check if ECharts is loaded
+    if (typeof echarts === 'undefined') {
+        console.error('ECharts not loaded');
+        return;
+    }
+
+    const chartDom = document.getElementById('portfolioChart');
+    if (!chartDom) return;
+
+    // Initialize chart
+    portfolioChart = echarts.init(chartDom);
+
+    // Load initial data
+    await loadPortfolioChartData(currentTimeRange);
+
+    // Setup time range buttons
+    document.querySelectorAll('.time-range-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            document.querySelectorAll('.time-range-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentTimeRange = btn.dataset.range;
+            await loadPortfolioChartData(currentTimeRange);
+        });
+    });
+}
+
+// Load Portfolio Chart Data
+async function loadPortfolioChartData(range) {
+    if (!currentModelId || !portfolioChart) return;
+
+    try {
+        const response = await fetch(`/api/models/${currentModelId}/portfolio-history?range=${range}`);
+        if (!response.ok) {
+            console.warn('Portfolio history endpoint failed');
+            return;
+        }
+
+        const data = await response.json();
+
+        const option = {
+            backgroundColor: 'transparent',
+            tooltip: {
+                trigger: 'axis',
+                backgroundColor: '#1a1f2e',
+                borderColor: '#3c4556',
+                textStyle: { color: '#e8eaed' },
+                formatter: function(params) {
+                    const point = params[0];
+                    return `${point.axisValue}<br/>Value: $${point.value.toLocaleString()}`;
+                }
+            },
+            grid: {
+                left: '3%',
+                right: '4%',
+                bottom: '3%',
+                top: '3%',
+                containLabel: true
+            },
+            xAxis: {
+                type: 'category',
+                data: data.timestamps,
+                axisLine: { lineStyle: { color: '#3c4556' } },
+                axisLabel: { color: '#9aa0a6' }
+            },
+            yAxis: {
+                type: 'value',
+                axisLine: { lineStyle: { color: '#3c4556' } },
+                axisLabel: {
+                    color: '#9aa0a6',
+                    formatter: '${value}'
+                },
+                splitLine: { lineStyle: { color: '#252d3d' } }
+            },
+            series: [{
+                data: data.values,
+                type: 'line',
+                smooth: true,
+                lineStyle: {
+                    color: data.values[data.values.length - 1] >= data.values[0] ? '#4caf50' : '#f44336',
+                    width: 2
+                },
+                areaStyle: {
+                    color: {
+                        type: 'linear',
+                        x: 0, y: 0, x2: 0, y2: 1,
+                        colorStops: [{
+                            offset: 0,
+                            color: data.values[data.values.length - 1] >= data.values[0] ? 'rgba(76, 175, 80, 0.3)' : 'rgba(244, 67, 54, 0.3)'
+                        }, {
+                            offset: 1,
+                            color: 'rgba(0, 0, 0, 0)'
+                        }]
+                    }
+                },
+                itemStyle: {
+                    color: data.values[data.values.length - 1] >= data.values[0] ? '#4caf50' : '#f44336'
+                }
+            }]
+        };
+
+        portfolioChart.setOption(option);
+
+    } catch (error) {
+        console.error('Failed to load portfolio chart data:', error);
+    }
+}
+
+// Load Positions Table
+async function loadPositionsTable() {
+    if (!currentModelId) return;
+
+    try {
+        const response = await fetch(`/api/models/${currentModelId}/portfolio`);
+        if (!response.ok) return;
+
+        const data = await response.json();
+        const positions = data.portfolio.positions || [];
+
+        const tbody = document.getElementById('positionsTableBody');
+
+        if (positions.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No open positions</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = positions.map(pos => {
+            const pnl = pos.unrealized_pnl || 0;
+            const pnlPct = pos.unrealized_pnl_pct || 0;
+            const pnlClass = pnl >= 0 ? 'pnl-positive' : 'pnl-negative';
+
+            return `
+                <tr>
+                    <td><strong>${pos.coin}</strong></td>
+                    <td>${pos.amount.toFixed(4)}</td>
+                    <td>$${pos.avg_buy_price.toFixed(2)}</td>
+                    <td>$${pos.current_price.toFixed(2)}</td>
+                    <td class="${pnlClass}">
+                        ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}<br>
+                        <small>(${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)</small>
+                    </td>
+                    <td>
+                        <button class="btn-secondary btn-small" onclick="closePosition('${pos.coin}')">
+                            Close
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+    } catch (error) {
+        console.error('Failed to load positions:', error);
+    }
+}
+
+// Load Trade History
+async function loadTradeHistory(page = 1) {
+    if (!currentModelId) return;
+
+    tradesCurrentPage = page;
+
+    try {
+        const response = await fetch(`/api/models/${currentModelId}/trades?limit=1000`);
+        if (!response.ok) return;
+
+        const allTrades = await response.json();
+
+        const tbody = document.getElementById('tradesTableBody');
+
+        if (allTrades.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No trades yet</td></tr>';
+            document.getElementById('tradesPagination').style.display = 'none';
+            return;
+        }
+
+        // Pagination
+        const totalPages = Math.ceil(allTrades.length / tradesPerPage);
+        const startIdx = (page - 1) * tradesPerPage;
+        const endIdx = startIdx + tradesPerPage;
+        const pageTrades = allTrades.slice(startIdx, endIdx);
+
+        tbody.innerHTML = pageTrades.map(trade => {
+            const pnl = trade.pnl || 0;
+            const pnlClass = pnl > 0 ? 'pnl-positive' : pnl < 0 ? 'pnl-negative' : '';
+            const actionClass = trade.action === 'buy' ? 'trade-buy' : 'trade-sell';
+
+            return `
+                <tr>
+                    <td>${formatDate(trade.timestamp)}</td>
+                    <td><strong>${trade.coin}</strong></td>
+                    <td class="${actionClass}">${trade.action.toUpperCase()}</td>
+                    <td>${trade.amount.toFixed(4)}</td>
+                    <td>$${trade.price.toFixed(2)}</td>
+                    <td class="${pnlClass}">
+                        ${pnl !== 0 ? (pnl > 0 ? '+' : '') + '$' + pnl.toFixed(2) : '-'}
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        // Update pagination
+        document.getElementById('paginationInfo').textContent = `Page ${page} of ${totalPages}`;
+        document.getElementById('prevPageBtn').disabled = page === 1;
+        document.getElementById('nextPageBtn').disabled = page === totalPages;
+        document.getElementById('tradesPagination').style.display = 'flex';
+
+    } catch (error) {
+        console.error('Failed to load trade history:', error);
+    }
+}
+
+// Update Market Ticker
+async function updateMarketTicker() {
+    try {
+        const response = await fetch('/api/market/prices?symbols=BTC,ETH,BNB,SOL,XRP,DOGE');
+        if (!response.ok) return;
+
+        const prices = await response.json();
+
+        const ticker = document.getElementById('marketTicker');
+
+        const items = Object.entries(prices).map(([coin, data]) => {
+            const change = data.change_24h || 0;
+            const changeClass = change >= 0 ? 'positive' : 'negative';
+            const sign = change >= 0 ? '+' : '';
+
+            return `
+                <div class="ticker-item">
+                    <span class="ticker-coin">${coin}</span>
+                    <span class="ticker-price">$${data.price.toLocaleString()}</span>
+                    <span class="ticker-change ${changeClass}">${sign}${change.toFixed(2)}%</span>
+                </div>
+            `;
+        }).join('');
+
+        // Duplicate items for seamless scroll
+        ticker.innerHTML = items + items;
+
+    } catch (error) {
+        console.error('Failed to update market ticker:', error);
+    }
+}
+
+// Load AI Conversations
+async function loadAIConversations() {
+    if (!currentModelId) return;
+
+    try {
+        const response = await fetch(`/api/models/${currentModelId}/conversations?limit=5`);
+        if (!response.ok) return;
+
+        const conversations = await response.json();
+
+        const container = document.getElementById('conversationsContainer');
+
+        if (conversations.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="bi bi-chat-dots"></i>
+                    <p>No conversations yet</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = conversations.map(conv => {
+            const statusClass = conv.approved ? 'approved' : conv.rejected ? 'rejected' : 'pending';
+            const statusText = conv.approved ? '✅ Approved' : conv.rejected ? '❌ Rejected' : '⏳ Pending';
+
+            return `
+                <div class="conversation-item">
+                    <div class="conversation-header">
+                        <span class="conversation-model">Model ${currentModelId}</span>
+                        <span class="conversation-time">${formatDate(conv.timestamp)}</span>
+                    </div>
+                    <div class="conversation-summary">
+                        💭 "${conv.ai_reasoning ? conv.ai_reasoning.substring(0, 100) + '...' : 'No reasoning provided'}"
+                    </div>
+                    <div class="conversation-decision">
+                        → Decision: ${conv.decision_type} ${conv.coin || ''} ${conv.amount ? conv.amount + ' at $' + conv.price : ''}
+                    </div>
+                    <div class="conversation-status">
+                        <span class="conversation-badge ${statusClass}">${statusText}</span>
+                        <button class="view-full-btn" onclick="viewConversation(${conv.id})">View Full ▶️</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+    } catch (error) {
+        console.error('Failed to load AI conversations:', error);
+    }
+}
+
+// Close Position (placeholder)
+function closePosition(coin) {
+    showToast(`Close position for ${coin} - Coming soon!`, 'info');
+}
+
+// View Conversation (placeholder)
+function viewConversation(id) {
+    showToast('View full conversation - Coming soon!', 'info');
+}
+
+// Export Trades
+document.getElementById('exportTradesBtn')?.addEventListener('click', async () => {
+    if (!currentModelId) {
+        showToast('Please select a model first', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/models/${currentModelId}/trades?limit=10000`);
+        const trades = await response.json();
+
+        // Convert to CSV
+        const headers = ['Date', 'Coin', 'Action', 'Amount', 'Price', 'P&L'];
+        const rows = trades.map(t => [
+            t.timestamp,
+            t.coin,
+            t.action,
+            t.amount,
+            t.price,
+            t.pnl || ''
+        ]);
+
+        const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
+
+        // Download
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `trades_model_${currentModelId}_${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+
+        showToast('Trades exported successfully', 'success');
+    } catch (error) {
+        console.error('Export failed:', error);
+        showToast('Failed to export trades', 'error');
+    }
+});
+
+// Pagination event listeners
+document.getElementById('prevPageBtn')?.addEventListener('click', () => {
+    loadTradeHistory(tradesCurrentPage - 1);
+});
+
+document.getElementById('nextPageBtn')?.addEventListener('click', () => {
+    loadTradeHistory(tradesCurrentPage + 1);
+});
+
+// Toggle conversations
+document.getElementById('toggleConversations')?.addEventListener('click', () => {
+    const container = document.getElementById('conversationsContainer');
+    const icon = document.querySelector('#toggleConversations i');
+
+    if (container.style.display === 'none') {
+        container.style.display = 'block';
+        icon.className = 'bi bi-chevron-down';
+    } else {
+        container.style.display = 'none';
+        icon.className = 'bi bi-chevron-up';
+    }
+});
+
+// Helper: Format Currency
+function formatCurrency(value) {
+    if (value === undefined || value === null) return '$0.00';
+    return '$' + value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Helper: Format Percent
+function formatPercent(value) {
+    if (value === undefined || value === null) return '0.00%';
+    return value.toFixed(2) + '%';
+}
+
+// Helper: Format Date
+function formatDate(timestamp) {
+    if (!timestamp) return '--';
+    const date = new Date(timestamp);
+    return date.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+// Setup Auto-Refresh
+function setupAutoRefresh() {
+    // Clear existing intervals
+    Object.values(autoRefreshIntervals).forEach(clearInterval);
+    autoRefreshIntervals = {};
+
+    // Only refresh when tab is visible
+    const refreshWhenVisible = (fn, interval) => {
+        const id = setInterval(() => {
+            if (!document.hidden && currentModelId) {
+                fn();
+            }
+        }, interval);
+        return id;
+    };
+
+    // Set up intervals (gentle, not harsh)
+    autoRefreshIntervals.ticker = refreshWhenVisible(updateMarketTicker, 30000); // 30s
+    autoRefreshIntervals.metrics = refreshWhenVisible(loadPortfolioMetrics, 60000); // 1min
+    autoRefreshIntervals.positions = refreshWhenVisible(loadPositionsTable, 45000); // 45s
+    autoRefreshIntervals.conversations = refreshWhenVisible(loadAIConversations, 60000); // 1min
+}
+
+// Pause auto-refresh when tab hidden
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        console.log('Tab hidden, pausing auto-refresh');
+    } else {
+        console.log('Tab visible, resuming auto-refresh');
+    }
+});
+
+// Enhanced loadDashboardData function
+const originalLoadDashboardData = typeof loadDashboardData !== 'undefined' ? loadDashboardData : null;
+loadDashboardData = async function() {
+    if (originalLoadDashboardData) {
+        await originalLoadDashboardData();
+    }
+
+    // Load new dashboard features
+    await loadPortfolioMetrics();
+    await initPortfolioChart();
+    await loadPositionsTable();
+    await loadTradeHistory();
+    await updateMarketTicker();
+    await loadAIConversations();
+};
+
+// Initialize on page load
+if (typeof currentModelId !== 'undefined' && currentModelId) {
+    loadDashboardData();
+    setupAutoRefresh();
+}
+
+console.log('✓ Enhanced Dashboard Features Loaded');
+
+// ========================================
+// MODELS PAGE - Session 2
+// ========================================
+
+let multiModelEnabled = false;
+let allModelsData = [];
+let modelsFilter = 'all';
+
+// Load Models Page
+async function loadModelsPage() {
+    try {
+        const response = await fetch('/api/models/all-summary');
+        if (!response.ok) {
+            throw new Error('Failed to fetch models summary');
+        }
+
+        const data = await response.json();
+        allModelsData = data.models || [];
+
+        // Update aggregated metrics if multi-model is enabled
+        if (multiModelEnabled && allModelsData.length > 0) {
+            updateAggregatedMetrics(data.aggregated);
+            document.getElementById('aggregatedSection').style.display = 'block';
+        } else {
+            document.getElementById('aggregatedSection').style.display = 'none';
+        }
+
+        // Render models grid
+        renderModelsGrid(allModelsData);
+
+        console.log('✓ Loaded models page with', allModelsData.length, 'models');
+
+    } catch (error) {
+        console.error('Failed to load models page:', error);
+        showToast('Failed to load models', 'error');
+    }
+}
+
+// Update Aggregated Metrics
+function updateAggregatedMetrics(agg) {
+    document.getElementById('aggTotalCapital').textContent = formatCurrency(agg.total_capital);
+    document.getElementById('aggTotalValue').textContent = formatCurrency(agg.total_value);
+    document.getElementById('aggTotalPnL').textContent = formatCurrency(agg.total_pnl);
+
+    const pnlPercent = document.getElementById('aggTotalPnLPercent');
+    const sign = agg.total_pnl >= 0 ? '+' : '';
+    pnlPercent.textContent = `${sign}${agg.total_pnl_pct.toFixed(2)}%`;
+    pnlPercent.className = `agg-metric-change ${agg.total_pnl >= 0 ? 'positive' : 'negative'}`;
+
+    document.getElementById('aggActiveModels').textContent = `${agg.active_models}/${agg.total_models}`;
+    document.getElementById('aggTotalTrades').textContent = agg.total_trades;
+    document.getElementById('aggAvgWinRate').textContent = `${agg.avg_win_rate.toFixed(1)}%`;
+}
+
+// Render Models Grid
+function renderModelsGrid(models) {
+    const grid = document.getElementById('modelsGrid');
+
+    // Apply filter
+    let filteredModels = models;
+    if (modelsFilter === 'active') {
+        filteredModels = models.filter(m => m.is_active);
+    } else if (modelsFilter === 'paused') {
+        filteredModels = models.filter(m => !m.is_active);
+    }
+
+    if (filteredModels.length === 0) {
+        grid.innerHTML = `
+            <div class="empty-state">
+                <i class="bi bi-cpu"></i>
+                <p>No models ${modelsFilter !== 'all' ? `(${modelsFilter})` : 'created yet'}</p>
+                <button class="btn-primary" onclick="switchPage('settings'); setTimeout(() => document.getElementById('addModelBtn').click(), 100)">
+                    Create Your First Model
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    grid.innerHTML = filteredModels.map(model => `
+        <div class="model-card ${model.is_active ? '' : 'paused'}">
+            <div class="model-header">
+                <div class="model-title-section">
+                    <div class="model-icon">${getModelIcon(model.model_name)}</div>
+                    <div class="model-name">${model.name}</div>
+                    <div class="model-provider">
+                        ${model.provider_name} • ${model.model_name}
+                    </div>
+                </div>
+                <span class="model-status-badge ${model.status}">
+                    ${model.is_active ? '🟢 Active' : '⏸️ Paused'}
+                </span>
+            </div>
+
+            <div class="model-stats">
+                <div class="model-stat">
+                    <div class="model-stat-label">Capital</div>
+                    <div class="model-stat-value">${formatCurrencyShort(model.initial_capital)}</div>
+                </div>
+                <div class="model-stat">
+                    <div class="model-stat-label">Current Value</div>
+                    <div class="model-stat-value ${model.pnl >= 0 ? 'positive' : 'negative'}">
+                        ${formatCurrencyShort(model.current_value)}
+                    </div>
+                </div>
+                <div class="model-stat">
+                    <div class="model-stat-label">P&L</div>
+                    <div class="model-stat-value ${model.pnl >= 0 ? 'positive' : 'negative'}">
+                        ${model.pnl >= 0 ? '+' : ''}${formatCurrencyShort(model.pnl)}
+                    </div>
+                    <div class="model-stat-subtitle">
+                        ${model.pnl >= 0 ? '+' : ''}${model.pnl_pct.toFixed(2)}%
+                    </div>
+                </div>
+                <div class="model-stat">
+                    <div class="model-stat-label">Win Rate</div>
+                    <div class="model-stat-value">${model.win_rate.toFixed(1)}%</div>
+                    <div class="model-stat-subtitle">${model.wins}W / ${model.losses}L</div>
+                </div>
+            </div>
+
+            <div class="model-metrics">
+                <div class="model-metric">
+                    <div class="model-metric-label">Trades</div>
+                    <div class="model-metric-value">${model.total_trades}</div>
+                </div>
+                <div class="model-metric">
+                    <div class="model-metric-label">Positions</div>
+                    <div class="model-metric-value">${model.open_positions}</div>
+                </div>
+            </div>
+
+            <div class="model-actions">
+                <button class="model-action-btn primary" onclick="viewModelDashboard(${model.id})">
+                    <i class="bi bi-eye"></i>
+                    View
+                </button>
+                <button class="model-action-btn" onclick="editModelSettings(${model.id})">
+                    <i class="bi bi-gear"></i>
+                    Settings
+                </button>
+                <button class="model-action-btn ${model.is_active ? 'danger' : 'success'}" onclick="toggleModelStatus(${model.id}, ${model.is_active})">
+                    <i class="bi bi-${model.is_active ? 'pause' : 'play'}-circle"></i>
+                    ${model.is_active ? 'Pause' : 'Resume'}
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Get Model Icon based on model name
+function getModelIcon(modelName) {
+    const name = modelName.toLowerCase();
+    if (name.includes('gpt') || name.includes('openai')) return '🤖';
+    if (name.includes('claude')) return '🧠';
+    if (name.includes('gemini')) return '💎';
+    if (name.includes('llama')) return '🦙';
+    if (name.includes('deepseek')) return '🔍';
+    return '⚡';
+}
+
+// Format Currency (Short version for cards)
+function formatCurrencyShort(value) {
+    if (value === undefined || value === null) return '$0';
+    if (Math.abs(value) >= 1000000) {
+        return '$' + (value / 1000000).toFixed(2) + 'M';
+    } else if (Math.abs(value) >= 1000) {
+        return '$' + (value / 1000).toFixed(2) + 'K';
+    }
+    return '$' + value.toFixed(2);
+}
+
+// View Model Dashboard
+function viewModelDashboard(modelId) {
+    // Set the model in dropdown
+    document.getElementById('modelSelect').value = modelId;
+
+    // Trigger change event to load model data
+    const event = new Event('change');
+    document.getElementById('modelSelect').dispatchEvent(event);
+
+    // Switch to dashboard page
+    switchPage('dashboard');
+
+    showToast(`Switched to Model ${modelId}`, 'success');
+}
+
+// Edit Model Settings
+function editModelSettings(modelId) {
+    switchPage('settings');
+    showToast('Model settings - Coming soon!', 'info');
+}
+
+// Toggle Model Status (Pause/Resume)
+function toggleModelStatus(modelId, isCurrentlyActive) {
+    const action = isCurrentlyActive ? 'pause' : 'resume';
+    const actionText = isCurrentlyActive ? 'Paused' : 'Resumed';
+
+    // TODO: Implement actual API call to pause/resume model
+    showToast(`Model ${actionText} - Feature coming soon!`, 'info');
+
+    // For now, just reload the page after a delay
+    setTimeout(() => {
+        loadModelsPage();
+    }, 1000);
+}
+
+// Multi-Model Toggle Handler
+document.getElementById('multiModelToggle')?.addEventListener('change', function() {
+    multiModelEnabled = this.checked;
+
+    const statusDiv = document.getElementById('multiModelStatus');
+
+    if (multiModelEnabled) {
+        statusDiv.innerHTML = '<i class="bi bi-check-circle"></i> <span>Multi-model trading is enabled - All active models will trade independently</span>';
+        statusDiv.classList.add('active');
+        showToast('✓ Multi-model trading enabled', 'success');
+    } else {
+        statusDiv.innerHTML = '<i class="bi bi-info-circle"></i> <span>Multi-model trading is currently disabled</span>';
+        statusDiv.classList.remove('active');
+        showToast('Multi-model trading disabled', 'info');
+    }
+
+    // Reload page to show/hide aggregated metrics
+    loadModelsPage();
+});
+
+// Models Filter Handler
+document.getElementById('modelsFilter')?.addEventListener('change', function() {
+    modelsFilter = this.value;
+    renderModelsGrid(allModelsData);
+});
+
+// Enhanced switchPage to load models page
+const originalSwitchPage = typeof switchPage !== 'undefined' ? switchPage : null;
+switchPage = function(pageName) {
+    if (originalSwitchPage) {
+        originalSwitchPage(pageName);
+    } else {
+        // Fallback implementation
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+
+        document.getElementById(`${pageName}Page`)?.classList.add('active');
+        document.querySelector(`[data-page="${pageName}"]`)?.classList.add('active');
+    }
+
+    // Load models page data when switched to
+    if (pageName === 'models') {
+        loadModelsPage();
+    }
+
+    // Dispatch page change event
+    document.dispatchEvent(new CustomEvent('pageChange', { detail: pageName }));
+};
+
+console.log('✓ Models Page JavaScript Loaded');
+
+// ============================================
+// SESSION 3: ANALYTICS & INSIGHTS JAVASCRIPT
+// ============================================
+
+// Global variables for charts
+let assetAllocationChart = null;
+let conversationsData = [];
+
+// Initialize Asset Allocation Donut Chart
+function initAssetAllocationChart() {
+    const chartDom = document.getElementById('assetAllocationChart');
+    if (!chartDom) return;
+
+    assetAllocationChart = echarts.init(chartDom);
+
+    const option = {
+        tooltip: {
+            trigger: 'item',
+            formatter: '{b}: ${c} ({d}%)',
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            borderColor: '#333',
+            textStyle: {
+                color: '#fff'
+            }
+        },
+        series: [{
+            name: 'Asset Allocation',
+            type: 'pie',
+            radius: ['45%', '70%'],
+            avoidLabelOverlap: true,
+            itemStyle: {
+                borderRadius: 8,
+                borderColor: '#1a1a1a',
+                borderWidth: 2
+            },
+            label: {
+                show: false
+            },
+            emphasis: {
+                label: {
+                    show: true,
+                    fontSize: 16,
+                    fontWeight: 'bold'
+                },
+                itemStyle: {
+                    shadowBlur: 10,
+                    shadowOffsetX: 0,
+                    shadowColor: 'rgba(0, 0, 0, 0.5)'
+                }
+            },
+            data: []
+        }]
+    };
+
+    assetAllocationChart.setOption(option);
+
+    // Resize chart on window resize
+    window.addEventListener('resize', () => {
+        assetAllocationChart?.resize();
+    });
+}
+
+// Load Asset Allocation Data
+async function loadAssetAllocation() {
+    if (!currentModelId) return;
+
+    try {
+        const response = await fetch(`/api/models/${currentModelId}/asset-allocation`);
+        if (!response.ok) throw new Error('Failed to load asset allocation');
+
+        const data = await response.json();
+
+        // Update chart
+        if (assetAllocationChart) {
+            const chartData = data.allocations.map(item => ({
+                name: item.name,
+                value: item.value,
+                itemStyle: {
+                    color: item.color
+                }
+            }));
+
+            assetAllocationChart.setOption({
+                series: [{
+                    data: chartData
+                }]
+            });
+        }
+
+        // Update legend
+        updateAllocationLegend(data.allocations);
+
+        // Update timestamp
+        const timestamp = new Date(data.timestamp);
+        document.getElementById('allocationTimestamp').textContent =
+            `Updated: ${timestamp.toLocaleTimeString()}`;
+
+    } catch (error) {
+        console.error('Error loading asset allocation:', error);
+        showNotification('Failed to load asset allocation', 'error');
+    }
+}
+
+// Update Allocation Legend
+function updateAllocationLegend(allocations) {
+    const legendContainer = document.getElementById('allocationLegend');
+    if (!legendContainer) return;
+
+    if (allocations.length === 0) {
+        legendContainer.innerHTML = `
+            <div class="empty-state">
+                <i class="bi bi-pie-chart"></i>
+                <p>No allocations yet</p>
+            </div>
+        `;
+        return;
+    }
+
+    legendContainer.innerHTML = allocations.map(item => `
+        <div class="allocation-legend-item">
+            <div class="allocation-legend-left">
+                <div class="allocation-color-dot" style="background: ${item.color}"></div>
+                <span class="allocation-name">${item.name}</span>
+            </div>
+            <div class="allocation-legend-right">
+                <span class="allocation-percentage">${item.percentage.toFixed(1)}%</span>
+                <span class="allocation-value">$${item.value.toFixed(2)}</span>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Load Performance Analytics
+async function loadPerformanceAnalytics() {
+    if (!currentModelId) return;
+
+    try {
+        const response = await fetch(`/api/models/${currentModelId}/performance-analytics`);
+        if (!response.ok) throw new Error('Failed to load performance analytics');
+
+        const data = await response.json();
+
+        // Update Sharpe Ratio
+        const sharpeEl = document.getElementById('sharpeRatio');
+        if (sharpeEl) {
+            sharpeEl.textContent = data.sharpe_ratio.toFixed(2);
+            sharpeEl.className = 'perf-metric-value';
+            if (data.sharpe_ratio > 1) sharpeEl.classList.add('positive');
+            else if (data.sharpe_ratio < 0) sharpeEl.classList.add('negative');
+        }
+
+        // Update Max Drawdown
+        const drawdownEl = document.getElementById('maxDrawdown');
+        if (drawdownEl) {
+            drawdownEl.textContent = `-${data.max_drawdown_pct.toFixed(2)}%`;
+            drawdownEl.className = 'perf-metric-value negative';
+        }
+
+        // Update Win Streak
+        const winStreakEl = document.getElementById('winStreak');
+        if (winStreakEl) {
+            winStreakEl.textContent = data.win_streak;
+            winStreakEl.className = 'perf-metric-value';
+            if (data.current_win_streak > 0) {
+                winStreakEl.textContent += ` (${data.current_win_streak} current)`;
+                winStreakEl.classList.add('positive');
+            }
+        }
+
+        // Update Loss Streak
+        const lossStreakEl = document.getElementById('lossStreak');
+        if (lossStreakEl) {
+            lossStreakEl.textContent = data.loss_streak;
+            lossStreakEl.className = 'perf-metric-value';
+            if (data.current_loss_streak > 0) {
+                lossStreakEl.textContent += ` (${data.current_loss_streak} current)`;
+                lossStreakEl.classList.add('negative');
+            }
+        }
+
+        // Update Best Trade
+        const bestTradeEl = document.getElementById('bestTrade');
+        if (bestTradeEl) {
+            bestTradeEl.textContent = `$${data.best_trade.toFixed(2)}`;
+            bestTradeEl.className = 'perf-metric-value positive';
+        }
+
+        // Update Worst Trade
+        const worstTradeEl = document.getElementById('worstTrade');
+        if (worstTradeEl) {
+            worstTradeEl.textContent = `$${data.worst_trade.toFixed(2)}`;
+            worstTradeEl.className = 'perf-metric-value negative';
+        }
+
+        // Update Avg Win
+        const avgWinEl = document.getElementById('avgWin');
+        if (avgWinEl) {
+            avgWinEl.textContent = `$${data.avg_win.toFixed(2)}`;
+            avgWinEl.className = 'perf-metric-value positive';
+        }
+
+        // Update Avg Loss
+        const avgLossEl = document.getElementById('avgLoss');
+        if (avgLossEl) {
+            avgLossEl.textContent = `$${data.avg_loss.toFixed(2)}`;
+            avgLossEl.className = 'perf-metric-value negative';
+        }
+
+        // Update Profit Factor
+        const profitFactorEl = document.getElementById('profitFactor');
+        if (profitFactorEl) {
+            profitFactorEl.textContent = data.profit_factor.toFixed(2);
+            profitFactorEl.className = 'perf-metric-value';
+            if (data.profit_factor > 1) profitFactorEl.classList.add('positive');
+            else if (data.profit_factor < 1) profitFactorEl.classList.add('negative');
+        }
+
+    } catch (error) {
+        console.error('Error loading performance analytics:', error);
+        showNotification('Failed to load performance analytics', 'error');
+    }
+}
+
+// Refresh Analytics Button
+function setupAnalyticsRefresh() {
+    const refreshBtn = document.getElementById('refreshAnalyticsBtn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', async () => {
+            refreshBtn.classList.add('refreshing');
+            await Promise.all([
+                loadAssetAllocation(),
+                loadPerformanceAnalytics()
+            ]);
+            setTimeout(() => refreshBtn.classList.remove('refreshing'), 1000);
+        });
+    }
+}
+
+// Enhanced AI Conversations with Filtering
+async function loadAIConversations() {
+    if (!currentModelId) return;
+
+    try {
+        const response = await fetch(`/api/models/${currentModelId}/conversations?limit=50`);
+        if (!response.ok) throw new Error('Failed to load conversations');
+
+        conversationsData = await response.json();
+        renderConversations(conversationsData);
+
+    } catch (error) {
+        console.error('Error loading conversations:', error);
+        const container = document.getElementById('conversationsContainer');
+        if (container) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="bi bi-chat-dots"></i>
+                    <p>Failed to load conversations</p>
+                </div>
+            `;
+        }
+    }
+}
+
+// Render Conversations
+function renderConversations(conversations) {
+    const container = document.getElementById('conversationsContainer');
+    if (!container) return;
+
+    if (conversations.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <i class="bi bi-chat-dots"></i>
+                <p>No conversations yet</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = conversations.map((conv, index) => {
+        const timestamp = new Date(conv.timestamp);
+        const action = conv.decision?.action || 'unknown';
+        const reasoning = conv.reasoning || 'No reasoning provided';
+
+        return `
+            <div class="conversation-item" data-action="${action.toLowerCase()}" data-index="${index}">
+                <div class="conversation-header">
+                    <span class="conversation-action ${action.toLowerCase()}">${action.toUpperCase()}</span>
+                    <span class="conversation-timestamp">${timestamp.toLocaleString()}</span>
+                </div>
+                <div class="conversation-body" id="convBody${index}">
+                    ${reasoning.substring(0, 150)}${reasoning.length > 150 ? '...' : ''}
+                </div>
+                ${reasoning.length > 150 ? `
+                    <button class="conversation-expand" onclick="toggleConversation(${index})">
+                        <span id="convToggle${index}">Show more</span>
+                    </button>
+                ` : ''}
+            </div>
+        `;
+    }).join('');
+}
+
+// Toggle Conversation Expansion
+function toggleConversation(index) {
+    const bodyEl = document.getElementById(`convBody${index}`);
+    const toggleEl = document.getElementById(`convToggle${index}`);
+    const conv = conversationsData[index];
+
+    if (!bodyEl || !toggleEl || !conv) return;
+
+    if (bodyEl.classList.contains('expanded')) {
+        bodyEl.classList.remove('expanded');
+        bodyEl.textContent = conv.reasoning.substring(0, 150) +
+            (conv.reasoning.length > 150 ? '...' : '');
+        toggleEl.textContent = 'Show more';
+    } else {
+        bodyEl.classList.add('expanded');
+        bodyEl.textContent = conv.reasoning;
+        toggleEl.textContent = 'Show less';
+    }
+}
+
+// Setup Conversation Filters
+function setupConversationFilters() {
+    const searchInput = document.getElementById('conversationSearch');
+    const filterSelect = document.getElementById('conversationFilter');
+    const sortSelect = document.getElementById('conversationSort');
+
+    if (searchInput) {
+        searchInput.addEventListener('input', filterConversations);
+    }
+
+    if (filterSelect) {
+        filterSelect.addEventListener('change', filterConversations);
+    }
+
+    if (sortSelect) {
+        sortSelect.addEventListener('change', sortAndFilterConversations);
+    }
+}
+
+// Filter Conversations
+function filterConversations() {
+    const searchTerm = document.getElementById('conversationSearch')?.value.toLowerCase() || '';
+    const actionFilter = document.getElementById('conversationFilter')?.value || 'all';
+
+    const items = document.querySelectorAll('.conversation-item');
+    items.forEach(item => {
+        const action = item.dataset.action;
+        const text = item.textContent.toLowerCase();
+
+        const matchesSearch = text.includes(searchTerm);
+        const matchesAction = actionFilter === 'all' || action === actionFilter;
+
+        if (matchesSearch && matchesAction) {
+            item.classList.remove('filtered-out');
+        } else {
+            item.classList.add('filtered-out');
+        }
+    });
+}
+
+// Sort and Filter Conversations
+function sortAndFilterConversations() {
+    const sortOrder = document.getElementById('conversationSort')?.value || 'newest';
+
+    let sortedConversations = [...conversationsData];
+    if (sortOrder === 'oldest') {
+        sortedConversations.reverse();
+    }
+
+    renderConversations(sortedConversations);
+    filterConversations(); // Reapply filters after sorting
+}
+
+// Update the existing loadDashboard function to include analytics
+const originalLoadDashboard = window.loadDashboard;
+window.loadDashboard = async function() {
+    if (originalLoadDashboard) {
+        await originalLoadDashboard();
+    }
+
+    // Initialize and load analytics
+    initAssetAllocationChart();
+    await loadAssetAllocation();
+    await loadPerformanceAnalytics();
+};
+
+// Update auto-refresh to include analytics
+if (window.setupAutoRefresh) {
+    const originalSetupAutoRefresh = window.setupAutoRefresh;
+    window.setupAutoRefresh = function() {
+        originalSetupAutoRefresh();
+
+        // Add analytics refresh intervals
+        const refreshWhenVisible = (fn, interval) => {
+            const id = setInterval(() => {
+                if (!document.hidden && currentModelId) {
+                    fn();
+                }
+            }, interval);
+            return id;
+        };
+
+        window.autoRefreshIntervals = window.autoRefreshIntervals || {};
+        window.autoRefreshIntervals.allocation = refreshWhenVisible(loadAssetAllocation, 120000); // 2 min
+        window.autoRefreshIntervals.analytics = refreshWhenVisible(loadPerformanceAnalytics, 180000); // 3 min
+    };
+}
+
+// Initialize Session 3 features when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    setupAnalyticsRefresh();
+    setupConversationFilters();
+});

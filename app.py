@@ -49,16 +49,27 @@ TRADE_FEE_RATE = 0.001  # 默认交易费率
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    """Default route - Enhanced dashboard"""
+    return render_template('enhanced.html')
 
 @app.route('/enhanced')
 def enhanced():
+    """Enhanced dashboard (alias for /)"""
     return render_template('enhanced.html')
+
+@app.route('/classic')
+def classic():
+    """Classic view (legacy)"""
+    return render_template('index.html')
 
 @app.route('/test_ui_debug.html')
 def test_ui_debug():
     with open('test_ui_debug.html', 'r') as f:
         return f.read()
+
+@app.route('/test-profiles')
+def test_profiles():
+    return render_template('test_profiles.html')
 
 # ============ Provider API Endpoints ============
 
@@ -119,14 +130,12 @@ def fetch_provider_models():
         return jsonify({'error': 'API URL and key are required'}), 400
 
     try:
-        # This is a placeholder - implement actual API call based on provider
-        # For now, return empty list or common models
+        import requests
         models = []
 
         # Try to detect provider type and call appropriate API
         if 'openai.com' in api_url.lower():
             # OpenAI API call
-            import requests
             headers = {
                 'Authorization': f'Bearer {api_key}',
                 'Content-Type': 'application/json'
@@ -137,7 +146,6 @@ def fetch_provider_models():
                 models = [m['id'] for m in result.get('data', []) if 'gpt' in m['id'].lower()]
         elif 'deepseek' in api_url.lower():
             # DeepSeek API
-            import requests
             headers = {
                 'Authorization': f'Bearer {api_key}',
                 'Content-Type': 'application/json'
@@ -146,9 +154,38 @@ def fetch_provider_models():
             if response.status_code == 200:
                 result = response.json()
                 models = [m['id'] for m in result.get('data', [])]
+        elif 'openrouter.ai' in api_url.lower():
+            # OpenRouter API - fetch available models
+            headers = {
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json'
+            }
+            response = requests.get('https://openrouter.ai/api/v1/models', headers=headers, timeout=10)
+            if response.status_code == 200:
+                result = response.json()
+                models = [m['id'] for m in result.get('data', [])]
         else:
-            # Default: return common model names
-            models = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo']
+            # Generic OpenAI-compatible API
+            headers = {
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json'
+            }
+            # Try standard /models endpoint
+            try:
+                response = requests.get(f'{api_url}/models', headers=headers, timeout=10)
+                if response.status_code == 200:
+                    result = response.json()
+                    if 'data' in result:
+                        models = [m['id'] for m in result.get('data', [])]
+                    else:
+                        # Fallback to common model names
+                        models = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo']
+                else:
+                    # Fallback to common model names
+                    models = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo']
+            except:
+                # Fallback to common model names
+                models = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo']
 
         return jsonify({'models': models})
     except Exception as e:
@@ -272,6 +309,388 @@ def get_conversations(model_id):
     limit = request.args.get('limit', 20, type=int)
     conversations = db.get_conversations(model_id, limit=limit)
     return jsonify(conversations)
+
+@app.route('/api/models/<int:model_id>/portfolio-metrics', methods=['GET'])
+def get_portfolio_metrics(model_id):
+    """Get aggregated portfolio metrics for dashboard"""
+    try:
+        # Get current portfolio
+        prices_data = market_fetcher.get_current_prices(['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE'])
+        current_prices = {coin: prices_data[coin]['price'] for coin in prices_data}
+        portfolio = db.get_portfolio(model_id, current_prices)
+
+        # Get model data
+        model = db.get_model(model_id)
+        if not model:
+            return jsonify({'error': 'Model not found'}), 404
+
+        initial_capital = model['initial_capital']
+        total_value = portfolio.get('total_value', initial_capital)
+
+        # Calculate total P&L
+        total_pnl = total_value - initial_capital
+        total_pnl_pct = (total_pnl / initial_capital * 100) if initial_capital > 0 else 0
+
+        # Get trades for win rate and today's P&L
+        all_trades = enhanced_db.get_trades(model_id, limit=1000)
+
+        # Calculate win rate
+        profitable_trades = [t for t in all_trades if t.get('pnl', 0) > 0]
+        total_trades_count = len(all_trades)
+        win_rate = (len(profitable_trades) / total_trades_count * 100) if total_trades_count > 0 else 0
+
+        # Calculate today's P&L
+        from datetime import datetime, timedelta
+        today = datetime.now().date()
+        today_trades = [t for t in all_trades if datetime.fromisoformat(t['timestamp'].replace('Z', '+00:00')).date() == today]
+        today_pnl = sum(t.get('pnl', 0) for t in today_trades)
+        today_pnl_pct = (today_pnl / initial_capital * 100) if initial_capital > 0 else 0
+
+        # Count open positions
+        positions = portfolio.get('positions', [])
+        open_positions = len(positions)
+        positions_value = sum(p.get('value', 0) for p in positions)
+
+        # Calculate yesterday's value for change
+        history = db.get_account_value_history(model_id, limit=2)
+        yesterday_value = history[1]['value'] if len(history) > 1 else initial_capital
+        value_change = total_value - yesterday_value
+        value_change_pct = (value_change / yesterday_value * 100) if yesterday_value > 0 else 0
+
+        return jsonify({
+            'total_value': total_value,
+            'value_change': value_change,
+            'value_change_pct': value_change_pct,
+            'total_pnl': total_pnl,
+            'total_pnl_pct': total_pnl_pct,
+            'today_pnl': today_pnl,
+            'today_pnl_pct': today_pnl_pct,
+            'win_rate': win_rate,
+            'wins': len(profitable_trades),
+            'total_trades': total_trades_count,
+            'open_positions': open_positions,
+            'positions_value': positions_value,
+            'initial_capital': initial_capital
+        })
+    except Exception as e:
+        import traceback
+        print(f"[ERROR] Portfolio metrics failed: {traceback.format_exc()}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/portfolio-history', methods=['GET'])
+def get_portfolio_history(model_id):
+    """Get portfolio value history for chart"""
+    try:
+        time_range = request.args.get('range', '24h')
+
+        # Determine limit based on time range
+        limits = {
+            '1h': 12,      # 5-minute intervals
+            '24h': 96,     # 15-minute intervals
+            '7d': 168,     # Hourly
+            '30d': 720,    # Every 4 hours
+            '90d': 2160,   # Every 4 hours
+            'all': 10000   # All data
+        }
+
+        limit = limits.get(time_range, 96)
+
+        # Get account value history
+        history = db.get_account_value_history(model_id, limit=limit)
+
+        # Format for ECharts
+        chart_data = {
+            'timestamps': [h['timestamp'] for h in history],
+            'values': [h['value'] for h in history],
+            'range': time_range
+        }
+
+        return jsonify(chart_data)
+    except Exception as e:
+        import traceback
+        print(f"[ERROR] Portfolio history failed: {traceback.format_exc()}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/asset-allocation', methods=['GET'])
+def get_asset_allocation(model_id):
+    """Get current asset allocation for donut chart"""
+    try:
+        # Get current market prices
+        prices_data = market_fetcher.get_current_prices(['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE'])
+        current_prices = {coin: prices_data[coin]['price'] for coin in prices_data}
+
+        # Get portfolio
+        portfolio = db.get_portfolio(model_id, current_prices)
+
+        # Get model data
+        model = enhanced_db.get_model(model_id)
+        if not model:
+            return jsonify({'error': 'Model not found'}), 404
+
+        # Calculate allocation
+        allocations = []
+        positions = portfolio.get('positions', [])
+        cash = portfolio.get('cash', model['initial_capital'])
+        total_value = portfolio.get('total_value', model['initial_capital'])
+
+        # Add cash allocation
+        if cash > 0:
+            allocations.append({
+                'name': 'Cash (USDT)',
+                'value': cash,
+                'percentage': (cash / total_value * 100) if total_value > 0 else 0,
+                'color': '#3B82F6'  # Blue for cash
+            })
+
+        # Add position allocations
+        colors = ['#10B981', '#F59E0B', '#8B5CF6', '#EF4444', '#06B6D4', '#F97316']
+        for i, pos in enumerate(positions):
+            if pos.get('value', 0) > 0:
+                allocations.append({
+                    'name': pos['coin'],
+                    'value': pos['value'],
+                    'percentage': (pos['value'] / total_value * 100) if total_value > 0 else 0,
+                    'amount': pos['amount'],
+                    'price': pos['current_price'],
+                    'color': colors[i % len(colors)]
+                })
+
+        return jsonify({
+            'allocations': allocations,
+            'total_value': total_value,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        import traceback
+        print(f"[ERROR] Asset allocation failed: {traceback.format_exc()}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/performance-analytics', methods=['GET'])
+def get_performance_analytics(model_id):
+    """Get detailed performance analytics including Sharpe ratio, drawdown, streaks, etc."""
+    try:
+        import numpy as np
+
+        # Get all trades for this model
+        trades = enhanced_db.get_trades(model_id, limit=10000)
+
+        # Get model data
+        model = enhanced_db.get_model(model_id)
+        if not model:
+            return jsonify({'error': 'Model not found'}), 404
+
+        initial_capital = model['initial_capital']
+
+        # Initialize default values
+        analytics = {
+            'sharpe_ratio': 0,
+            'max_drawdown': 0,
+            'max_drawdown_pct': 0,
+            'win_streak': 0,
+            'current_win_streak': 0,
+            'loss_streak': 0,
+            'current_loss_streak': 0,
+            'best_trade': 0,
+            'best_trade_pct': 0,
+            'worst_trade': 0,
+            'worst_trade_pct': 0,
+            'avg_win': 0,
+            'avg_loss': 0,
+            'profit_factor': 0,
+            'total_trades': len(trades)
+        }
+
+        if len(trades) == 0:
+            return jsonify(analytics)
+
+        # Separate winning and losing trades
+        winning_trades = [t for t in trades if t.get('pnl', 0) > 0]
+        losing_trades = [t for t in trades if t.get('pnl', 0) < 0]
+
+        # Calculate best and worst trades
+        if trades:
+            pnls = [t.get('pnl', 0) for t in trades]
+            analytics['best_trade'] = max(pnls)
+            analytics['worst_trade'] = min(pnls)
+
+            # Best/worst trade percentages
+            if trades:
+                for t in trades:
+                    if t.get('pnl', 0) == analytics['best_trade']:
+                        analytics['best_trade_pct'] = (t.get('pnl', 0) / initial_capital * 100)
+                    if t.get('pnl', 0) == analytics['worst_trade']:
+                        analytics['worst_trade_pct'] = (t.get('pnl', 0) / initial_capital * 100)
+
+        # Calculate average win/loss
+        if winning_trades:
+            analytics['avg_win'] = sum(t.get('pnl', 0) for t in winning_trades) / len(winning_trades)
+        if losing_trades:
+            analytics['avg_loss'] = sum(t.get('pnl', 0) for t in losing_trades) / len(losing_trades)
+
+        # Calculate profit factor (gross profit / gross loss)
+        gross_profit = sum(t.get('pnl', 0) for t in winning_trades)
+        gross_loss = abs(sum(t.get('pnl', 0) for t in losing_trades))
+        if gross_loss > 0:
+            analytics['profit_factor'] = gross_profit / gross_loss
+
+        # Calculate win/loss streaks
+        current_streak = 0
+        max_win_streak = 0
+        max_loss_streak = 0
+        last_was_win = None
+
+        for trade in trades:
+            pnl = trade.get('pnl', 0)
+            is_win = pnl > 0
+
+            if last_was_win is None or last_was_win == is_win:
+                current_streak += 1
+            else:
+                if last_was_win:
+                    max_win_streak = max(max_win_streak, current_streak)
+                else:
+                    max_loss_streak = max(max_loss_streak, current_streak)
+                current_streak = 1
+
+            last_was_win = is_win
+
+        # Final streak check
+        if last_was_win:
+            max_win_streak = max(max_win_streak, current_streak)
+            analytics['current_win_streak'] = current_streak
+        else:
+            max_loss_streak = max(max_loss_streak, current_streak)
+            analytics['current_loss_streak'] = current_streak
+
+        analytics['win_streak'] = max_win_streak
+        analytics['loss_streak'] = max_loss_streak
+
+        # Calculate Sharpe Ratio (simplified - using trade returns)
+        if len(trades) > 1:
+            returns = [(t.get('pnl', 0) / initial_capital) for t in trades]
+            if returns:
+                mean_return = np.mean(returns)
+                std_return = np.std(returns)
+                if std_return > 0:
+                    # Annualized Sharpe (assuming 252 trading days)
+                    analytics['sharpe_ratio'] = (mean_return / std_return) * np.sqrt(252)
+
+        # Calculate Maximum Drawdown
+        # Get account value history
+        history = db.get_account_value_history(model_id, limit=10000)
+        if history:
+            values = [h['value'] for h in history]
+            peak = values[0]
+            max_dd = 0
+
+            for value in values:
+                if value > peak:
+                    peak = value
+                dd = peak - value
+                if dd > max_dd:
+                    max_dd = dd
+
+            analytics['max_drawdown'] = max_dd
+            analytics['max_drawdown_pct'] = (max_dd / peak * 100) if peak > 0 else 0
+
+        return jsonify(analytics)
+    except Exception as e:
+        import traceback
+        print(f"[ERROR] Performance analytics failed: {traceback.format_exc()}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/all-summary', methods=['GET'])
+def get_all_models_summary():
+    """Get comprehensive summary of all models for the Models page"""
+    try:
+        prices_data = market_fetcher.get_current_prices(['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE'])
+        current_prices = {coin: prices_data[coin]['price'] for coin in prices_data}
+
+        models = db.get_all_models()
+        models_summary = []
+
+        total_capital = 0
+        total_value = 0
+        total_trades = 0
+        active_count = 0
+
+        for model in models:
+            # Get portfolio
+            portfolio = db.get_portfolio(model['id'], current_prices)
+
+            # Get model status (active/paused)
+            # For now, assume all models are active
+            is_active = True
+            if is_active:
+                active_count += 1
+
+            # Get trades for statistics
+            trades = enhanced_db.get_trades(model['id'], limit=1000)
+
+            # Calculate stats
+            initial_capital = model['initial_capital']
+            model_value = portfolio.get('total_value', initial_capital)
+            pnl = model_value - initial_capital
+            pnl_pct = (pnl / initial_capital * 100) if initial_capital > 0 else 0
+
+            # Win rate
+            profitable_trades = [t for t in trades if t.get('pnl', 0) > 0]
+            win_rate = (len(profitable_trades) / len(trades) * 100) if len(trades) > 0 else 0
+
+            # Get provider name
+            provider = db.get_provider(model['provider_id'])
+            provider_name = provider['name'] if provider else 'Unknown'
+
+            model_summary = {
+                'id': model['id'],
+                'name': model['name'],
+                'provider_name': provider_name,
+                'model_name': model['model_name'],
+                'initial_capital': initial_capital,
+                'current_value': model_value,
+                'pnl': pnl,
+                'pnl_pct': pnl_pct,
+                'win_rate': win_rate,
+                'total_trades': len(trades),
+                'wins': len(profitable_trades),
+                'losses': len(trades) - len(profitable_trades),
+                'open_positions': len(portfolio.get('positions', [])),
+                'is_active': is_active,
+                'status': 'active' if is_active else 'paused'
+            }
+
+            models_summary.append(model_summary)
+
+            # Aggregate totals
+            total_capital += initial_capital
+            total_value += model_value
+            total_trades += len(trades)
+
+        # Calculate aggregated metrics
+        total_pnl = total_value - total_capital
+        total_pnl_pct = (total_pnl / total_capital * 100) if total_capital > 0 else 0
+
+        # Average win rate across all models
+        avg_win_rate = sum(m['win_rate'] for m in models_summary) / len(models_summary) if models_summary else 0
+
+        return jsonify({
+            'models': models_summary,
+            'aggregated': {
+                'total_capital': total_capital,
+                'total_value': total_value,
+                'total_pnl': total_pnl,
+                'total_pnl_pct': total_pnl_pct,
+                'active_models': active_count,
+                'total_models': len(models),
+                'total_trades': total_trades,
+                'avg_win_rate': avg_win_rate
+            }
+        })
+
+    except Exception as e:
+        import traceback
+        print(f"[ERROR] All models summary failed: {traceback.format_exc()}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/aggregated/portfolio', methods=['GET'])
 def get_aggregated_portfolio():
@@ -613,7 +1032,6 @@ def init_enhanced_components(model_id):
         # Create executor with all components
         trading_executors[model_id] = TradingExecutor(
             db=enhanced_db,
-            exchange=None,  # TODO: Add exchange integration later
             risk_manager=risk_managers[model_id],
             notifier=notifiers[model_id],
             explainer=explainers[model_id]
@@ -972,15 +1390,21 @@ def reject_pending_decision(decision_id):
 def get_risk_status(model_id):
     """Get current risk status for a model"""
     try:
+        # Check if model exists first
+        model = enhanced_db.get_model(model_id)
+        if not model:
+            return jsonify({'error': f'Model {model_id} not found'}), 404
+
         init_enhanced_components(model_id)
 
         # Get portfolio
         prices_data = market_fetcher.get_current_prices(['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE'])
         portfolio = enhanced_db.get_portfolio(model_id, prices_data)
 
-        # Get settings
+        # Get settings (with defaults if not set)
         settings = enhanced_db.get_model_settings(model_id)
-        model = enhanced_db.get_model(model_id)
+        if not settings:
+            settings = {}
 
         # Calculate risk metrics
         total_value = portfolio['total_value']
@@ -1039,7 +1463,11 @@ def get_risk_status(model_id):
 
         return jsonify(risk_status)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"[ERROR] Risk status endpoint failed for model {model_id}:")
+        print(error_trace)
+        return jsonify({'error': str(e), 'details': error_trace}), 500
 
 # -------- Risk Profiles Management --------
 

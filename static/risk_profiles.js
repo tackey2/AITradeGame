@@ -2,15 +2,21 @@
 //      Risk Profiles Management - Complete JavaScript UI
 // ===================================================
 
-let currentModelId = null;
+// Note: currentModelId is defined in enhanced.js, so we don't redeclare it here
 let allRiskProfiles = [];
 let activeProfileId = null;
 
 // Initialize risk profiles when settings page loads
 async function initRiskProfiles() {
-    if (!isOnPage('settings')) return;
+    // Check if we're on the settings page OR if the profilesGrid element exists
+    const profilesGrid = document.getElementById('profilesGrid');
+    if (!profilesGrid) {
+        console.log('Risk profiles grid not found, skipping initialization');
+        return;
+    }
 
     try {
+        console.log('Initializing risk profiles...');
         await loadRiskProfiles();
         await loadActiveProfile();
         setupProfileEventListeners();
@@ -392,9 +398,7 @@ function setupProfileEventListeners() {
     const compareBtn = document.getElementById('compareProfilesBtn');
 
     if (createBtn) {
-        createBtn.addEventListener('click', () => {
-            showNotification('Custom profile creation coming soon!', 'info');
-        });
+        createBtn.addEventListener('click', showCreateCustomProfileModal);
     }
 
     if (compareBtn) {
@@ -402,8 +406,137 @@ function setupProfileEventListeners() {
     }
 }
 
+// Show create custom profile modal
+function showCreateCustomProfileModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>⚙️ Create Custom Risk Profile</h2>
+                <button class="btn-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="customProfileForm">
+                    <div class="form-group">
+                        <label>Profile Name *</label>
+                        <input type="text" id="customProfileName" class="form-input" placeholder="e.g., My Custom Strategy" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea id="customProfileDescription" class="form-input" rows="2" placeholder="Describe your strategy..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Icon</label>
+                        <input type="text" id="customProfileIcon" class="form-input" value="⭐" maxlength="2">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Max Position Size (%)</label>
+                        <input type="number" id="customMaxPositionSize" class="form-input" value="10" step="0.1" min="1" max="50">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Max Daily Loss (%)</label>
+                        <input type="number" id="customMaxDailyLoss" class="form-input" value="3" step="0.1" min="0.5" max="20">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Max Daily Trades</label>
+                        <input type="number" id="customMaxDailyTrades" class="form-input" value="20" min="1" max="100">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Max Open Positions</label>
+                        <input type="number" id="customMaxOpenPositions" class="form-input" value="5" min="1" max="20">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Min Cash Reserve (%)</label>
+                        <input type="number" id="customMinCashReserve" class="form-input" value="20" min="10" max="80">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Max Drawdown (%)</label>
+                        <input type="number" id="customMaxDrawdown" class="form-input" value="15" min="5" max="50">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Trading Interval (minutes)</label>
+                        <input type="number" id="customTradingInterval" class="form-input" value="60" min="5" max="1440">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+                <button class="btn-primary" onclick="createCustomProfile()">Create Profile</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+}
+
+// Create custom profile
+async function createCustomProfile() {
+    const name = document.getElementById('customProfileName').value.trim();
+    const description = document.getElementById('customProfileDescription').value.trim();
+    const icon = document.getElementById('customProfileIcon').value.trim();
+
+    if (!name) {
+        showNotification('Profile name is required', 'error');
+        return;
+    }
+
+    const profileData = {
+        name: name,
+        description: description,
+        icon: icon,
+        max_position_size_pct: parseFloat(document.getElementById('customMaxPositionSize').value),
+        max_daily_loss_pct: parseFloat(document.getElementById('customMaxDailyLoss').value),
+        max_daily_trades: parseInt(document.getElementById('customMaxDailyTrades').value),
+        max_open_positions: parseInt(document.getElementById('customMaxOpenPositions').value),
+        min_cash_reserve_pct: parseFloat(document.getElementById('customMinCashReserve').value),
+        max_drawdown_pct: parseFloat(document.getElementById('customMaxDrawdown').value),
+        trading_interval_minutes: parseInt(document.getElementById('customTradingInterval').value)
+    };
+
+    try {
+        const response = await fetch('/api/risk-profiles', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(profileData)
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to create profile');
+        }
+
+        const result = await response.json();
+
+        showNotification(`✓ Profile "${name}" created successfully!`, 'success');
+
+        // Close modal
+        document.querySelector('.modal-overlay').remove();
+
+        // Reload profiles
+        await loadRiskProfiles();
+
+    } catch (error) {
+        console.error('Error creating profile:', error);
+        showNotification(`Failed to create profile: ${error.message}`, 'error');
+    }
+}
+
 // Helper: Get current model ID from dropdown
+// Note: Use window.currentModelId if available from enhanced.js, otherwise get from select
 function getCurrentModelId() {
+    if (typeof window.currentModelId !== 'undefined' && window.currentModelId) {
+        return window.currentModelId;
+    }
     const select = document.getElementById('modelSelect');
     return select ? parseInt(select.value) : null;
 }
@@ -467,16 +600,36 @@ document.head.appendChild(style);
 
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initRiskProfiles);
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log('DOM loaded, initializing risk profiles...');
+        initRiskProfiles();
+    });
 } else {
+    console.log('DOM already loaded, initializing risk profiles...');
     initRiskProfiles();
 }
 
 // Re-initialize when switching to settings page
 document.addEventListener('pageChange', (e) => {
+    console.log('Page changed to:', e.detail);
     if (e.detail === 'settings') {
+        console.log('Settings page active, re-initializing risk profiles...');
         setTimeout(initRiskProfiles, 100);
     }
 });
+
+// Also listen for when elements become visible (in case pages are shown/hidden)
+const observer = new MutationObserver(() => {
+    const profilesGrid = document.getElementById('profilesGrid');
+    if (profilesGrid && profilesGrid.offsetParent !== null && allRiskProfiles.length === 0) {
+        console.log('Profiles grid became visible, initializing...');
+        initRiskProfiles();
+    }
+});
+
+// Start observing when the document body is available
+if (document.body) {
+    observer.observe(document.body, { childList: true, subtree: true });
+}
 
 console.log('✓ Risk Profiles JavaScript loaded');
