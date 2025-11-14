@@ -2097,3 +2097,436 @@ textarea.form-input {
 .table-container::-webkit-scrollbar-thumb:hover {
     background: var(--text-muted);
 }
+
+/* ========================================
+   MODELS PAGE - Session 2
+======================================== */
+
+/* Multi-Model Control */
+.multi-model-control {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: var(--spacing);
+    margin-bottom: calc(var(--spacing) * 2);
+}
+
+.toggle-container {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 12px;
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 34px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--bg-tertiary);
+    transition: .4s;
+    border-radius: 34px;
+    border: 2px solid var(--border-color);
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 26px;
+    width: 26px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+    background-color: var(--color-success);
+    border-color: var(--color-success);
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(26px);
+}
+
+.toggle-info {
+    flex: 1;
+}
+
+.toggle-label {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.toggle-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.multi-model-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.multi-model-status.active {
+    background: rgba(76, 175, 80, 0.1);
+    color: var(--color-success);
+}
+
+.multi-model-status i {
+    font-size: 16px;
+}
+
+/* Aggregated Metrics */
+.aggregated-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--spacing);
+}
+
+.agg-metric-card {
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: var(--spacing);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.agg-metric-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--color-primary), var(--color-info));
+}
+
+.agg-metric-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.agg-metric-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.agg-metric-change {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.agg-metric-change.positive {
+    color: var(--color-success);
+}
+
+.agg-metric-change.negative {
+    color: var(--color-danger);
+}
+
+/* Models Grid */
+.models-filter {
+    display: flex;
+    gap: 8px;
+}
+
+.form-select-small {
+    padding: 6px 12px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.models-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: var(--spacing);
+}
+
+.model-card {
+    background: var(--bg-secondary);
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: var(--spacing);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.model-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--color-primary);
+    transition: height 0.3s ease;
+}
+
+.model-card:hover {
+    border-color: var(--color-primary);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.model-card:hover::before {
+    height: 6px;
+}
+
+.model-card.paused {
+    opacity: 0.7;
+}
+
+.model-card.paused::before {
+    background: var(--text-muted);
+}
+
+.model-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.model-title-section {
+    flex: 1;
+}
+
+.model-icon {
+    font-size: 24px;
+    margin-bottom: 4px;
+}
+
+.model-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.model-provider {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.model-status-badge {
+    padding: 6px 12px;
+    border-radius: 16px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.model-status-badge.active {
+    background: rgba(76, 175, 80, 0.2);
+    color: var(--color-success);
+}
+
+.model-status-badge.paused {
+    background: rgba(158, 158, 158, 0.2);
+    color: var(--text-muted);
+}
+
+.model-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.model-stat {
+    text-align: center;
+    padding: 12px;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+}
+
+.model-stat-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+
+.model-stat-value {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.model-stat-value.positive {
+    color: var(--color-success);
+}
+
+.model-stat-value.negative {
+    color: var(--color-danger);
+}
+
+.model-stat-subtitle {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.model-metrics {
+    display: flex;
+    justify-content: space-around;
+    padding: 12px 0;
+    margin-bottom: 16px;
+    border-top: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.model-metric {
+    text-align: center;
+}
+
+.model-metric-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.model-metric-value {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.model-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.model-action-btn {
+    flex: 1;
+    padding: 8px 12px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.model-action-btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.model-action-btn.primary {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: white;
+}
+
+.model-action-btn.primary:hover {
+    background: #1976d2;
+}
+
+.model-action-btn.danger {
+    background: transparent;
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+}
+
+.model-action-btn.danger:hover {
+    background: rgba(244, 67, 54, 0.1);
+}
+
+.model-action-btn.success {
+    background: transparent;
+    border-color: var(--color-success);
+    color: var(--color-success);
+}
+
+.model-action-btn.success:hover {
+    background: rgba(76, 175, 80, 0.1);
+}
+
+/* Model Card Icons */
+.model-action-btn i {
+    font-size: 14px;
+}
+
+/* Empty State for Models */
+.models-grid .empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 64px 32px;
+    background: var(--bg-secondary);
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius);
+}
+
+.models-grid .empty-state i {
+    font-size: 64px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
+
+.models-grid .empty-state p {
+    font-size: 16px;
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .models-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .model-stats {
+        grid-template-columns: 1fr;
+    }
+}
+

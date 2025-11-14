@@ -2118,3 +2118,261 @@ if (typeof currentModelId !== 'undefined' && currentModelId) {
 }
 
 console.log('✓ Enhanced Dashboard Features Loaded');
+
+// ========================================
+// MODELS PAGE - Session 2
+// ========================================
+
+let multiModelEnabled = false;
+let allModelsData = [];
+let modelsFilter = 'all';
+
+// Load Models Page
+async function loadModelsPage() {
+    try {
+        const response = await fetch('/api/models/all-summary');
+        if (!response.ok) {
+            throw new Error('Failed to fetch models summary');
+        }
+
+        const data = await response.json();
+        allModelsData = data.models || [];
+
+        // Update aggregated metrics if multi-model is enabled
+        if (multiModelEnabled && allModelsData.length > 0) {
+            updateAggregatedMetrics(data.aggregated);
+            document.getElementById('aggregatedSection').style.display = 'block';
+        } else {
+            document.getElementById('aggregatedSection').style.display = 'none';
+        }
+
+        // Render models grid
+        renderModelsGrid(allModelsData);
+
+        console.log('✓ Loaded models page with', allModelsData.length, 'models');
+
+    } catch (error) {
+        console.error('Failed to load models page:', error);
+        showToast('Failed to load models', 'error');
+    }
+}
+
+// Update Aggregated Metrics
+function updateAggregatedMetrics(agg) {
+    document.getElementById('aggTotalCapital').textContent = formatCurrency(agg.total_capital);
+    document.getElementById('aggTotalValue').textContent = formatCurrency(agg.total_value);
+    document.getElementById('aggTotalPnL').textContent = formatCurrency(agg.total_pnl);
+
+    const pnlPercent = document.getElementById('aggTotalPnLPercent');
+    const sign = agg.total_pnl >= 0 ? '+' : '';
+    pnlPercent.textContent = `${sign}${agg.total_pnl_pct.toFixed(2)}%`;
+    pnlPercent.className = `agg-metric-change ${agg.total_pnl >= 0 ? 'positive' : 'negative'}`;
+
+    document.getElementById('aggActiveModels').textContent = `${agg.active_models}/${agg.total_models}`;
+    document.getElementById('aggTotalTrades').textContent = agg.total_trades;
+    document.getElementById('aggAvgWinRate').textContent = `${agg.avg_win_rate.toFixed(1)}%`;
+}
+
+// Render Models Grid
+function renderModelsGrid(models) {
+    const grid = document.getElementById('modelsGrid');
+
+    // Apply filter
+    let filteredModels = models;
+    if (modelsFilter === 'active') {
+        filteredModels = models.filter(m => m.is_active);
+    } else if (modelsFilter === 'paused') {
+        filteredModels = models.filter(m => !m.is_active);
+    }
+
+    if (filteredModels.length === 0) {
+        grid.innerHTML = `
+            <div class="empty-state">
+                <i class="bi bi-cpu"></i>
+                <p>No models ${modelsFilter !== 'all' ? `(${modelsFilter})` : 'created yet'}</p>
+                <button class="btn-primary" onclick="switchPage('settings'); setTimeout(() => document.getElementById('addModelBtn').click(), 100)">
+                    Create Your First Model
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    grid.innerHTML = filteredModels.map(model => `
+        <div class="model-card ${model.is_active ? '' : 'paused'}">
+            <div class="model-header">
+                <div class="model-title-section">
+                    <div class="model-icon">${getModelIcon(model.model_name)}</div>
+                    <div class="model-name">${model.name}</div>
+                    <div class="model-provider">
+                        ${model.provider_name} • ${model.model_name}
+                    </div>
+                </div>
+                <span class="model-status-badge ${model.status}">
+                    ${model.is_active ? '🟢 Active' : '⏸️ Paused'}
+                </span>
+            </div>
+
+            <div class="model-stats">
+                <div class="model-stat">
+                    <div class="model-stat-label">Capital</div>
+                    <div class="model-stat-value">${formatCurrencyShort(model.initial_capital)}</div>
+                </div>
+                <div class="model-stat">
+                    <div class="model-stat-label">Current Value</div>
+                    <div class="model-stat-value ${model.pnl >= 0 ? 'positive' : 'negative'}">
+                        ${formatCurrencyShort(model.current_value)}
+                    </div>
+                </div>
+                <div class="model-stat">
+                    <div class="model-stat-label">P&L</div>
+                    <div class="model-stat-value ${model.pnl >= 0 ? 'positive' : 'negative'}">
+                        ${model.pnl >= 0 ? '+' : ''}${formatCurrencyShort(model.pnl)}
+                    </div>
+                    <div class="model-stat-subtitle">
+                        ${model.pnl >= 0 ? '+' : ''}${model.pnl_pct.toFixed(2)}%
+                    </div>
+                </div>
+                <div class="model-stat">
+                    <div class="model-stat-label">Win Rate</div>
+                    <div class="model-stat-value">${model.win_rate.toFixed(1)}%</div>
+                    <div class="model-stat-subtitle">${model.wins}W / ${model.losses}L</div>
+                </div>
+            </div>
+
+            <div class="model-metrics">
+                <div class="model-metric">
+                    <div class="model-metric-label">Trades</div>
+                    <div class="model-metric-value">${model.total_trades}</div>
+                </div>
+                <div class="model-metric">
+                    <div class="model-metric-label">Positions</div>
+                    <div class="model-metric-value">${model.open_positions}</div>
+                </div>
+            </div>
+
+            <div class="model-actions">
+                <button class="model-action-btn primary" onclick="viewModelDashboard(${model.id})">
+                    <i class="bi bi-eye"></i>
+                    View
+                </button>
+                <button class="model-action-btn" onclick="editModelSettings(${model.id})">
+                    <i class="bi bi-gear"></i>
+                    Settings
+                </button>
+                <button class="model-action-btn ${model.is_active ? 'danger' : 'success'}" onclick="toggleModelStatus(${model.id}, ${model.is_active})">
+                    <i class="bi bi-${model.is_active ? 'pause' : 'play'}-circle"></i>
+                    ${model.is_active ? 'Pause' : 'Resume'}
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Get Model Icon based on model name
+function getModelIcon(modelName) {
+    const name = modelName.toLowerCase();
+    if (name.includes('gpt') || name.includes('openai')) return '🤖';
+    if (name.includes('claude')) return '🧠';
+    if (name.includes('gemini')) return '💎';
+    if (name.includes('llama')) return '🦙';
+    if (name.includes('deepseek')) return '🔍';
+    return '⚡';
+}
+
+// Format Currency (Short version for cards)
+function formatCurrencyShort(value) {
+    if (value === undefined || value === null) return '$0';
+    if (Math.abs(value) >= 1000000) {
+        return '$' + (value / 1000000).toFixed(2) + 'M';
+    } else if (Math.abs(value) >= 1000) {
+        return '$' + (value / 1000).toFixed(2) + 'K';
+    }
+    return '$' + value.toFixed(2);
+}
+
+// View Model Dashboard
+function viewModelDashboard(modelId) {
+    // Set the model in dropdown
+    document.getElementById('modelSelect').value = modelId;
+
+    // Trigger change event to load model data
+    const event = new Event('change');
+    document.getElementById('modelSelect').dispatchEvent(event);
+
+    // Switch to dashboard page
+    switchPage('dashboard');
+
+    showToast(`Switched to Model ${modelId}`, 'success');
+}
+
+// Edit Model Settings
+function editModelSettings(modelId) {
+    switchPage('settings');
+    showToast('Model settings - Coming soon!', 'info');
+}
+
+// Toggle Model Status (Pause/Resume)
+function toggleModelStatus(modelId, isCurrentlyActive) {
+    const action = isCurrentlyActive ? 'pause' : 'resume';
+    const actionText = isCurrentlyActive ? 'Paused' : 'Resumed';
+
+    // TODO: Implement actual API call to pause/resume model
+    showToast(`Model ${actionText} - Feature coming soon!`, 'info');
+
+    // For now, just reload the page after a delay
+    setTimeout(() => {
+        loadModelsPage();
+    }, 1000);
+}
+
+// Multi-Model Toggle Handler
+document.getElementById('multiModelToggle')?.addEventListener('change', function() {
+    multiModelEnabled = this.checked;
+
+    const statusDiv = document.getElementById('multiModelStatus');
+
+    if (multiModelEnabled) {
+        statusDiv.innerHTML = '<i class="bi bi-check-circle"></i> <span>Multi-model trading is enabled - All active models will trade independently</span>';
+        statusDiv.classList.add('active');
+        showToast('✓ Multi-model trading enabled', 'success');
+    } else {
+        statusDiv.innerHTML = '<i class="bi bi-info-circle"></i> <span>Multi-model trading is currently disabled</span>';
+        statusDiv.classList.remove('active');
+        showToast('Multi-model trading disabled', 'info');
+    }
+
+    // Reload page to show/hide aggregated metrics
+    loadModelsPage();
+});
+
+// Models Filter Handler
+document.getElementById('modelsFilter')?.addEventListener('change', function() {
+    modelsFilter = this.value;
+    renderModelsGrid(allModelsData);
+});
+
+// Enhanced switchPage to load models page
+const originalSwitchPage = typeof switchPage !== 'undefined' ? switchPage : null;
+switchPage = function(pageName) {
+    if (originalSwitchPage) {
+        originalSwitchPage(pageName);
+    } else {
+        // Fallback implementation
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+
+        document.getElementById(`${pageName}Page`)?.classList.add('active');
+        document.querySelector(`[data-page="${pageName}"]`)?.classList.add('active');
+    }
+
+    // Load models page data when switched to
+    if (pageName === 'models') {
+        loadModelsPage();
+    }
+
+    // Dispatch page change event
+    document.dispatchEvent(new CustomEvent('pageChange', { detail: pageName }));
+};
+
+console.log('✓ Models Page JavaScript Loaded');

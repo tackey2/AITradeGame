@@ -43,6 +43,10 @@
                 <i class="bi bi-speedometer2"></i>
                 <span>Dashboard</span>
             </button>
+            <button class="nav-btn" data-page="models">
+                <i class="bi bi-cpu"></i>
+                <span>Models</span>
+            </button>
             <button class="nav-btn" data-page="settings">
                 <i class="bi bi-sliders"></i>
                 <span>Settings</span>
@@ -362,6 +366,94 @@
                 </div>
             </div>
 
+        </div>
+
+        <!-- Page: Models -->
+        <div class="page" id="modelsPage">
+            <!-- Multi-Model Control -->
+            <div class="section">
+                <div class="section-header">
+                    <h2>🤖 Trading Models Management</h2>
+                    <button class="btn-primary" onclick="switchPage('settings'); setTimeout(() => document.getElementById('addModelBtn').click(), 100)">
+                        <i class="bi bi-plus-circle"></i> Create New Model
+                    </button>
+                </div>
+
+                <!-- Multi-Model Toggle -->
+                <div class="multi-model-control">
+                    <div class="toggle-container">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="multiModelToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <div class="toggle-info">
+                            <div class="toggle-label">Enable Multi-Model Trading</div>
+                            <div class="toggle-desc">Run all active models simultaneously with independent portfolios</div>
+                        </div>
+                    </div>
+                    <div class="multi-model-status" id="multiModelStatus">
+                        <i class="bi bi-info-circle"></i>
+                        <span>Multi-model trading is currently disabled</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Aggregated Performance -->
+            <div class="section" id="aggregatedSection" style="display: none;">
+                <div class="section-header">
+                    <h2>📊 Aggregated Performance</h2>
+                </div>
+                <div class="aggregated-metrics">
+                    <div class="agg-metric-card">
+                        <div class="agg-metric-label">Total Capital</div>
+                        <div class="agg-metric-value" id="aggTotalCapital">$0.00</div>
+                    </div>
+                    <div class="agg-metric-card">
+                        <div class="agg-metric-label">Combined Value</div>
+                        <div class="agg-metric-value" id="aggTotalValue">$0.00</div>
+                    </div>
+                    <div class="agg-metric-card">
+                        <div class="agg-metric-label">Combined P&L</div>
+                        <div class="agg-metric-value" id="aggTotalPnL">$0.00</div>
+                        <div class="agg-metric-change" id="aggTotalPnLPercent">--</div>
+                    </div>
+                    <div class="agg-metric-card">
+                        <div class="agg-metric-label">Active Models</div>
+                        <div class="agg-metric-value" id="aggActiveModels">0/0</div>
+                    </div>
+                    <div class="agg-metric-card">
+                        <div class="agg-metric-label">Total Trades</div>
+                        <div class="agg-metric-value" id="aggTotalTrades">0</div>
+                    </div>
+                    <div class="agg-metric-card">
+                        <div class="agg-metric-label">Avg Win Rate</div>
+                        <div class="agg-metric-value" id="aggAvgWinRate">0%</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Models Grid -->
+            <div class="section">
+                <div class="section-header">
+                    <h2>Your Trading Models</h2>
+                    <div class="models-filter">
+                        <select id="modelsFilter" class="form-select-small">
+                            <option value="all">All Models</option>
+                            <option value="active">Active Only</option>
+                            <option value="paused">Paused Only</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="models-grid" id="modelsGrid">
+                    <div class="empty-state">
+                        <i class="bi bi-cpu"></i>
+                        <p>No models created yet</p>
+                        <button class="btn-primary" onclick="switchPage('settings'); setTimeout(() => document.getElementById('addModelBtn').click(), 100)">
+                            Create Your First Model
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Page: Settings -->

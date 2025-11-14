@@ -404,6 +404,99 @@ def get_portfolio_history(model_id):
         print(f"[ERROR] Portfolio history failed: {traceback.format_exc()}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/models/all-summary', methods=['GET'])
+def get_all_models_summary():
+    """Get comprehensive summary of all models for the Models page"""
+    try:
+        prices_data = market_fetcher.get_current_prices(['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE'])
+        current_prices = {coin: prices_data[coin]['price'] for coin in prices_data}
+
+        models = db.get_all_models()
+        models_summary = []
+
+        total_capital = 0
+        total_value = 0
+        total_trades = 0
+        active_count = 0
+
+        for model in models:
+            # Get portfolio
+            portfolio = db.get_portfolio(model['id'], current_prices)
+
+            # Get model status (active/paused)
+            # For now, assume all models are active
+            is_active = True
+            if is_active:
+                active_count += 1
+
+            # Get trades for statistics
+            trades = enhanced_db.get_trades(model['id'], limit=1000)
+
+            # Calculate stats
+            initial_capital = model['initial_capital']
+            model_value = portfolio.get('total_value', initial_capital)
+            pnl = model_value - initial_capital
+            pnl_pct = (pnl / initial_capital * 100) if initial_capital > 0 else 0
+
+            # Win rate
+            profitable_trades = [t for t in trades if t.get('pnl', 0) > 0]
+            win_rate = (len(profitable_trades) / len(trades) * 100) if len(trades) > 0 else 0
+
+            # Get provider name
+            provider = db.get_provider(model['provider_id'])
+            provider_name = provider['name'] if provider else 'Unknown'
+
+            model_summary = {
+                'id': model['id'],
+                'name': model['name'],
+                'provider_name': provider_name,
+                'model_name': model['model_name'],
+                'initial_capital': initial_capital,
+                'current_value': model_value,
+                'pnl': pnl,
+                'pnl_pct': pnl_pct,
+                'win_rate': win_rate,
+                'total_trades': len(trades),
+                'wins': len(profitable_trades),
+                'losses': len(trades) - len(profitable_trades),
+                'open_positions': len(portfolio.get('positions', [])),
+                'is_active': is_active,
+                'status': 'active' if is_active else 'paused'
+            }
+
+            models_summary.append(model_summary)
+
+            # Aggregate totals
+            total_capital += initial_capital
+            total_value += model_value
+            total_trades += len(trades)
+
+        # Calculate aggregated metrics
+        total_pnl = total_value - total_capital
+        total_pnl_pct = (total_pnl / total_capital * 100) if total_capital > 0 else 0
+
+        # Average win rate across all models
+        avg_win_rate = sum(m['win_rate'] for m in models_summary) / len(models_summary) if models_summary else 0
+
+        return jsonify({
+            'models': models_summary,
+            'aggregated': {
+                'total_capital': total_capital,
+                'total_value': total_value,
+                'total_pnl': total_pnl,
+                'total_pnl_pct': total_pnl_pct,
+                'active_models': active_count,
+                'total_models': len(models),
+                'total_trades': total_trades,
+                'avg_win_rate': avg_win_rate
+            }
+        })
+
+    except Exception as e:
+        import traceback
+        print(f"[ERROR] All models summary failed: {traceback.format_exc()}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/aggregated/portfolio', methods=['GET'])
 def get_aggregated_portfolio():
     """Get aggregated portfolio data across all models"""
