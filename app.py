@@ -49,11 +49,18 @@ TRADE_FEE_RATE = 0.001  # 默认交易费率
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    """Default route - Enhanced dashboard"""
+    return render_template('enhanced.html')
 
 @app.route('/enhanced')
 def enhanced():
+    """Enhanced dashboard (alias for /)"""
     return render_template('enhanced.html')
+
+@app.route('/classic')
+def classic():
+    """Classic view (legacy)"""
+    return render_template('index.html')
 
 @app.route('/test_ui_debug.html')
 def test_ui_debug():
