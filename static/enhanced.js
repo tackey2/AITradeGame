@@ -171,10 +171,39 @@ async function loadModelData() {
 }
 
 async function loadDashboardData() {
+    // Load original dashboard data
     await Promise.all([
         loadRiskStatus(),
         loadPendingDecisions()
     ]);
+
+    // Load Session 1 enhanced dashboard features
+    if (typeof loadPortfolioMetrics !== 'undefined') {
+        await loadPortfolioMetrics();
+    }
+    if (typeof initPortfolioChart !== 'undefined') {
+        await initPortfolioChart();
+    }
+    if (typeof loadPositionsTable !== 'undefined') {
+        await loadPositionsTable();
+    }
+    if (typeof loadTradeHistory !== 'undefined') {
+        await loadTradeHistory();
+    }
+    if (typeof updateMarketTicker !== 'undefined') {
+        await updateMarketTicker();
+    }
+    if (typeof loadAIConversations !== 'undefined') {
+        await loadAIConversations();
+    }
+
+    // Load Session 3 analytics features
+    if (typeof loadAssetAllocation !== 'undefined') {
+        await loadAssetAllocation();
+    }
+    if (typeof loadPerformanceAnalytics !== 'undefined') {
+        await loadPerformanceAnalytics();
+    }
 }
 
 // Trading Configuration (Environment + Automation)
@@ -2095,27 +2124,8 @@ document.addEventListener('visibilitychange', () => {
     }
 });
 
-// Enhanced loadDashboardData function
-const originalLoadDashboardData = typeof loadDashboardData !== 'undefined' ? loadDashboardData : null;
-loadDashboardData = async function() {
-    if (originalLoadDashboardData) {
-        await originalLoadDashboardData();
-    }
-
-    // Load new dashboard features
-    await loadPortfolioMetrics();
-    await initPortfolioChart();
-    await loadPositionsTable();
-    await loadTradeHistory();
-    await updateMarketTicker();
-    await loadAIConversations();
-};
-
-// Initialize on page load
-if (typeof currentModelId !== 'undefined' && currentModelId) {
-    loadDashboardData();
-    setupAutoRefresh();
-}
+// NOTE: loadDashboardData() has been updated in the main section to include all enhanced features
+// No need for override here anymore
 
 console.log('✓ Enhanced Dashboard Features Loaded');
 
@@ -2752,18 +2762,7 @@ function sortAndFilterConversations() {
     filterConversations(); // Reapply filters after sorting
 }
 
-// Update the existing loadDashboard function to include analytics
-const originalLoadDashboard = window.loadDashboard;
-window.loadDashboard = async function() {
-    if (originalLoadDashboard) {
-        await originalLoadDashboard();
-    }
-
-    // Initialize and load analytics
-    initAssetAllocationChart();
-    await loadAssetAllocation();
-    await loadPerformanceAnalytics();
-};
+// NOTE: Analytics features are now included in the main loadDashboardData() function
 
 // Update auto-refresh to include analytics
 if (window.setupAutoRefresh) {
@@ -2789,6 +2788,11 @@ if (window.setupAutoRefresh) {
 
 // Initialize Session 3 features when page loads
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize asset allocation chart
+    if (document.getElementById('assetAllocationChart')) {
+        initAssetAllocationChart();
+    }
+
     setupAnalyticsRefresh();
     setupConversationFilters();
 });
