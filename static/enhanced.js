@@ -108,6 +108,28 @@ function setupEventListeners() {
         });
     });
 
+    // Multi-model view toggle buttons
+    const showAllBtn = document.getElementById('showAllModelsBtn');
+    const showSingleBtn = document.getElementById('showSingleModelBtn');
+
+    if (showAllBtn) {
+        showAllBtn.addEventListener('click', () => {
+            showAllModelsView();
+            showAllBtn.style.display = 'none';
+            showSingleBtn.style.display = 'inline-block';
+        });
+    }
+
+    if (showSingleBtn) {
+        showSingleBtn.addEventListener('click', () => {
+            if (currentModelId) {
+                loadModelData();
+            }
+            showSingleBtn.style.display = 'none';
+            showAllBtn.style.display = 'inline-block';
+        });
+    }
+
     // Live warning modal
     document.getElementById('cancelLiveBtn').addEventListener('click', () => closeLiveWarning(false));
     document.getElementById('confirmLiveBtn').addEventListener('click', () => closeLiveWarning(true));
@@ -254,6 +276,179 @@ async function loadModelData() {
     if (typeof setupAutoRefresh !== 'undefined') {
         setupAutoRefresh();
     }
+}
+
+// Show All Models View - Like Classic View's Aggregated Mode
+async function showAllModelsView() {
+    try {
+        // Fetch aggregated data
+        const response = await fetch('/api/aggregated/portfolio');
+        if (!response.ok) {
+            showToast('Failed to load aggregated data', 'error');
+            return;
+        }
+
+        const data = await response.json();
+
+        // Update metrics with aggregated totals
+        updateDashboardAggregatedMetrics(data.portfolio);
+
+        // Show multi-model chart
+        await loadMultiModelChart(data.chart_data);
+
+        showToast(`Showing ${data.model_count} models`, 'info');
+
+    } catch (error) {
+        console.error('Failed to load aggregated view:', error);
+        showToast('Failed to load aggregated view', 'error');
+    }
+}
+
+// Update dashboard metrics for aggregated view
+function updateDashboardAggregatedMetrics(portfolio) {
+    const initialCapital = portfolio.initial_capital || 10000;
+    const totalValue = portfolio.total_value || initialCapital;
+    const totalPnL = totalValue - initialCapital;
+    const totalPnLPct = (totalPnL / initialCapital) * 100;
+
+    // Update Total Value
+    document.getElementById('totalValue').textContent = formatCurrency(totalValue);
+    const valueChange = totalValue - initialCapital;
+    updateMetricChange('totalValueChange', valueChange, (valueChange / initialCapital) * 100);
+
+    // Update Total P&L
+    document.getElementById('totalPnL').textContent = formatCurrency(totalPnL);
+    document.getElementById('totalPnLPercent').textContent = formatPercent(totalPnLPct);
+    document.getElementById('totalPnLPercent').className = `metric-change ${totalPnL >= 0 ? 'positive' : 'negative'}`;
+
+    // Update other metrics
+    document.getElementById('todayPnL').textContent = 'N/A';
+    document.getElementById('todayPnLPercent').textContent = '--';
+    document.getElementById('winRate').textContent = 'N/A';
+    document.getElementById('winRateDetails').textContent = 'Aggregated view';
+    document.getElementById('totalTrades').textContent = 'N/A';
+    document.getElementById('tradesBreakdown').textContent = 'See individual models';
+    document.getElementById('openPositionsCount').textContent = portfolio.positions ? portfolio.positions.length : 0;
+    document.getElementById('positionsValue').textContent = formatCurrency(portfolio.positions_value || 0);
+}
+
+// Load Multi-Model Chart - Shows all models' trends
+async function loadMultiModelChart(chartData) {
+    if (!chartData || chartData.length === 0) {
+        console.warn('No chart data available for multi-model view');
+        return;
+    }
+
+    // Ensure chart is initialized
+    if (typeof echarts === 'undefined') {
+        console.error('ECharts library not loaded');
+        return;
+    }
+
+    const chartDom = document.getElementById('portfolioChart');
+    if (!chartDom) return;
+
+    // Dispose existing chart
+    if (portfolioChart) {
+        portfolioChart.dispose();
+    }
+
+    portfolioChart = echarts.init(chartDom);
+
+    // Colors for different models
+    const colors = [
+        '#3370ff', '#ff6b35', '#00b96b', '#722ed1', '#fa8c16',
+        '#eb2f96', '#13c2c2', '#faad14', '#f5222d', '#52c41a'
+    ];
+
+    // Prepare time axis - collect all unique timestamps
+    const allTimestamps = new Set();
+    chartData.forEach(model => {
+        model.data.forEach(point => {
+            allTimestamps.add(point.timestamp);
+        });
+    });
+
+    // Sort timestamps
+    const timeAxis = Array.from(allTimestamps).sort().map(ts => {
+        const date = new Date(ts);
+        return date.toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    });
+
+    // Prepare series for each model
+    const series = chartData.map((model, index) => {
+        // Create a map of timestamp to value
+        const dataMap = {};
+        model.data.forEach(point => {
+            dataMap[point.timestamp] = point.value;
+        });
+
+        // Fill in values for all timestamps (null if missing)
+        const values = Array.from(allTimestamps).sort().map(ts => dataMap[ts] || null);
+
+        return {
+            name: model.model_name,
+            type: 'line',
+            data: values,
+            smooth: true,
+            lineStyle: { color: colors[index % colors.length], width: 2 },
+            itemStyle: { color: colors[index % colors.length] }
+        };
+    });
+
+    const option = {
+        backgroundColor: 'transparent',
+        tooltip: {
+            trigger: 'axis',
+            backgroundColor: '#1a1f2e',
+            borderColor: '#3c4556',
+            textStyle: { color: '#e8eaed' },
+            formatter: function(params) {
+                let result = `${params[0].axisValue}<br/>`;
+                params.forEach(param => {
+                    if (param.value !== null) {
+                        result += `${param.marker}${param.seriesName}: $${param.value.toLocaleString()}<br/>`;
+                    }
+                });
+                return result;
+            }
+        },
+        legend: {
+            data: chartData.map(m => m.model_name),
+            textStyle: { color: '#e8eaed' },
+            top: 10
+        },
+        grid: {
+            left: '3%',
+            right: '4%',
+            bottom: '3%',
+            top: '60px',
+            containLabel: true
+        },
+        xAxis: {
+            type: 'category',
+            data: timeAxis,
+            axisLine: { lineStyle: { color: '#3c4556' } },
+            axisLabel: { color: '#9aa0a6' }
+        },
+        yAxis: {
+            type: 'value',
+            axisLine: { lineStyle: { color: '#3c4556' } },
+            axisLabel: {
+                color: '#9aa0a6',
+                formatter: '${value}'
+            },
+            splitLine: { lineStyle: { color: '#252d3d' } }
+        },
+        series: series
+    };
+
+    portfolioChart.setOption(option);
 }
 
 async function loadDashboardData() {
@@ -1721,47 +1916,74 @@ async function loadPortfolioMetrics() {
     if (!currentModelId) return;
 
     try {
-        const response = await fetch(`/api/models/${currentModelId}/portfolio-metrics`);
-        if (!response.ok) {
-            console.error(`Portfolio metrics endpoint failed: ${response.status} ${response.statusText}`);
-            // Show error state in UI
+        // Simplified approach like classic view - use basic portfolio endpoint
+        const [portfolioResp, modelResp, tradesResp] = await Promise.all([
+            fetch(`/api/models/${currentModelId}/portfolio`),
+            fetch(`/api/models/${currentModelId}`),
+            fetch(`/api/models/${currentModelId}/trades?limit=1000`)
+        ]);
+
+        if (!portfolioResp.ok) {
+            console.error(`Portfolio endpoint failed: ${portfolioResp.status}`);
             document.getElementById('totalValue').textContent = 'Error loading';
             document.getElementById('totalPnL').textContent = 'Error loading';
             document.getElementById('todayPnL').textContent = 'Error loading';
-            showToast('Failed to load portfolio metrics', 'error');
+            showToast('Failed to load portfolio data', 'error');
             return;
         }
 
-        const metrics = await response.json();
+        const data = await portfolioResp.json();
+        const portfolio = data.portfolio;
+        const model = await modelResp.json();
+        const trades = await tradesResp.json();
 
-        // Update Total Value
-        document.getElementById('totalValue').textContent = formatCurrency(metrics.total_value);
-        updateMetricChange('totalValueChange', metrics.value_change, metrics.value_change_pct);
+        const initialCapital = model.initial_capital || 10000;
+        const totalValue = portfolio.total_value || initialCapital;
+        const totalPnL = totalValue - initialCapital;
+        const totalPnLPct = (totalPnL / initialCapital) * 100;
+
+        // Calculate win rate and trades
+        const totalTrades = trades.length;
+        const wins = trades.filter(t => t.pnl > 0).length;
+        const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
+
+        // Calculate today's P&L from trades
+        const today = new Date().toISOString().split('T')[0];
+        const todayTrades = trades.filter(t => t.exit_time && t.exit_time.startsWith(today));
+        const todayPnL = todayTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+        const todayPnLPct = totalValue > 0 ? (todayPnL / totalValue) * 100 : 0;
+
+        // Update UI - Total Value
+        document.getElementById('totalValue').textContent = formatCurrency(totalValue);
+        const valueChange = totalValue - initialCapital;
+        updateMetricChange('totalValueChange', valueChange, (valueChange / initialCapital) * 100);
 
         // Update Total P&L
-        document.getElementById('totalPnL').textContent = formatCurrency(metrics.total_pnl);
-        document.getElementById('totalPnLPercent').textContent = formatPercent(metrics.total_pnl_pct);
-        document.getElementById('totalPnLPercent').className = `metric-change ${metrics.total_pnl >= 0 ? 'positive' : 'negative'}`;
+        document.getElementById('totalPnL').textContent = formatCurrency(totalPnL);
+        document.getElementById('totalPnLPercent').textContent = formatPercent(totalPnLPct);
+        document.getElementById('totalPnLPercent').className = `metric-change ${totalPnL >= 0 ? 'positive' : 'negative'}`;
 
         // Update Today's P&L
-        document.getElementById('todayPnL').textContent = formatCurrency(metrics.today_pnl);
-        document.getElementById('todayPnLPercent').textContent = formatPercent(metrics.today_pnl_pct);
-        document.getElementById('todayPnLPercent').className = `metric-change ${metrics.today_pnl >= 0 ? 'positive' : 'negative'}`;
+        document.getElementById('todayPnL').textContent = formatCurrency(todayPnL);
+        document.getElementById('todayPnLPercent').textContent = formatPercent(todayPnLPct);
+        document.getElementById('todayPnLPercent').className = `metric-change ${todayPnL >= 0 ? 'positive' : 'negative'}`;
 
         // Update Win Rate
-        document.getElementById('winRate').textContent = `${metrics.win_rate.toFixed(1)}%`;
-        document.getElementById('winRateDetails').textContent = `${metrics.wins} wins / ${metrics.total_trades} trades`;
+        document.getElementById('winRate').textContent = `${winRate.toFixed(1)}%`;
+        document.getElementById('winRateDetails').textContent = `${wins} wins / ${totalTrades} trades`;
 
         // Update Total Trades
-        document.getElementById('totalTrades').textContent = metrics.total_trades;
-        document.getElementById('tradesBreakdown').textContent = `${metrics.wins} wins, ${metrics.total_trades - metrics.wins} losses`;
+        document.getElementById('totalTrades').textContent = totalTrades;
+        document.getElementById('tradesBreakdown').textContent = `${wins} wins, ${totalTrades - wins} losses`;
 
         // Update Open Positions
-        document.getElementById('openPositionsCount').textContent = metrics.open_positions;
-        document.getElementById('positionsValue').textContent = formatCurrency(metrics.positions_value);
+        const openPositions = portfolio.positions ? portfolio.positions.length : 0;
+        document.getElementById('openPositionsCount').textContent = openPositions;
+        document.getElementById('positionsValue').textContent = formatCurrency(portfolio.positions_value || 0);
 
     } catch (error) {
         console.error('Failed to load portfolio metrics:', error);
+        showToast('Failed to load portfolio data', 'error');
     }
 }
 
@@ -1809,18 +2031,52 @@ async function initPortfolioChart() {
     });
 }
 
-// Load Portfolio Chart Data
+// Load Portfolio Chart Data - Simplified like Classic View
 async function loadPortfolioChartData(range) {
     if (!currentModelId || !portfolioChart) return;
 
     try {
-        const response = await fetch(`/api/models/${currentModelId}/portfolio-history?range=${range}`);
+        // Use simple portfolio endpoint which includes account_value_history
+        const response = await fetch(`/api/models/${currentModelId}/portfolio`);
         if (!response.ok) {
-            console.warn('Portfolio history endpoint failed');
+            console.warn('Portfolio endpoint failed');
             return;
         }
 
         const data = await response.json();
+        const history = data.account_value_history || [];
+
+        if (history.length === 0) {
+            console.warn('No historical data available');
+            return;
+        }
+
+        // Add current value to history
+        const currentValue = data.portfolio.total_value;
+        const chartData = [...history];
+
+        // Format data for chart
+        const timestamps = chartData.map(h => {
+            const date = new Date(h.timestamp);
+            return date.toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        });
+
+        const values = chartData.map(h => h.total_value);
+
+        // Add current value if we have it
+        if (currentValue && values.length > 0) {
+            timestamps.push('Now');
+            values.push(currentValue);
+        }
+
+        const firstValue = values[0];
+        const lastValue = values[values.length - 1];
+        const isProfit = lastValue >= firstValue;
 
         const option = {
             backgroundColor: 'transparent',
@@ -1843,7 +2099,7 @@ async function loadPortfolioChartData(range) {
             },
             xAxis: {
                 type: 'category',
-                data: data.timestamps,
+                data: timestamps,
                 axisLine: { lineStyle: { color: '#3c4556' } },
                 axisLabel: { color: '#9aa0a6' }
             },
@@ -1857,11 +2113,11 @@ async function loadPortfolioChartData(range) {
                 splitLine: { lineStyle: { color: '#252d3d' } }
             },
             series: [{
-                data: data.values,
+                data: values,
                 type: 'line',
                 smooth: true,
                 lineStyle: {
-                    color: data.values[data.values.length - 1] >= data.values[0] ? '#4caf50' : '#f44336',
+                    color: isProfit ? '#4caf50' : '#f44336',
                     width: 2
                 },
                 areaStyle: {
@@ -1870,7 +2126,7 @@ async function loadPortfolioChartData(range) {
                         x: 0, y: 0, x2: 0, y2: 1,
                         colorStops: [{
                             offset: 0,
-                            color: data.values[data.values.length - 1] >= data.values[0] ? 'rgba(76, 175, 80, 0.3)' : 'rgba(244, 67, 54, 0.3)'
+                            color: isProfit ? 'rgba(76, 175, 80, 0.3)' : 'rgba(244, 67, 54, 0.3)'
                         }, {
                             offset: 1,
                             color: 'rgba(0, 0, 0, 0)'
@@ -1878,7 +2134,7 @@ async function loadPortfolioChartData(range) {
                     }
                 },
                 itemStyle: {
-                    color: data.values[data.values.length - 1] >= data.values[0] ? '#4caf50' : '#f44336'
+                    color: isProfit ? '#4caf50' : '#f44336'
                 }
             }]
         };
