@@ -198,6 +198,9 @@
                         <div class="analytics-card-header">
                             <h3>📈 Performance Analytics</h3>
                             <div class="analytics-info">
+                                <button class="btn-secondary btn-small" id="exportReportBtn" style="margin-right: 8px;">
+                                    <i class="bi bi-file-earmark-text"></i> Export Report
+                                </button>
                                 <button class="btn-icon" id="refreshAnalyticsBtn" title="Refresh Analytics">
                                     <i class="bi bi-arrow-clockwise"></i>
                                 </button>
@@ -306,6 +309,11 @@
                         <div class="data-section">
                             <div class="section-header">
                                 <h3>📈 Current Positions</h3>
+                                <div class="header-actions">
+                                    <button class="btn-secondary btn-small" id="exportPositionsBtn">
+                                        <i class="bi bi-download"></i> Export
+                                    </button>
+                                </div>
                             </div>
                             <div class="table-container">
                                 <table class="data-table">
@@ -1271,6 +1279,7 @@
     </div>
 
     <script src="/static/notifications.js"></script>
+    <script src="/static/exports.js"></script>
     <script src="/static/enhanced.js"></script>
     <script src="/static/risk_profiles.js"></script>
 </body>
