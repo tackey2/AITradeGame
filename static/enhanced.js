@@ -1654,7 +1654,12 @@ async function loadPortfolioMetrics() {
     try {
         const response = await fetch(`/api/models/${currentModelId}/portfolio-metrics`);
         if (!response.ok) {
-            console.warn('Portfolio metrics endpoint failed:', response.status);
+            console.error(`Portfolio metrics endpoint failed: ${response.status} ${response.statusText}`);
+            // Show error state in UI
+            document.getElementById('totalValue').textContent = 'Error loading';
+            document.getElementById('totalPnL').textContent = 'Error loading';
+            document.getElementById('todayPnL').textContent = 'Error loading';
+            showToast('Failed to load portfolio metrics', 'error');
             return;
         }
 
@@ -1703,9 +1708,10 @@ function updateMetricChange(elementId, value, percent) {
 async function initPortfolioChart() {
     if (!currentModelId) return;
 
-    // Check if ECharts is loaded
+    // Safety check: Ensure ECharts library is loaded
     if (typeof echarts === 'undefined') {
-        console.error('ECharts not loaded');
+        console.error('ECharts library not loaded yet. Retrying in 500ms...');
+        setTimeout(initPortfolioChart, 500);
         return;
     }
 
@@ -1865,7 +1871,12 @@ async function loadTradeHistory(page = 1) {
 
     try {
         const response = await fetch(`/api/models/${currentModelId}/trades?limit=1000`);
-        if (!response.ok) return;
+        if (!response.ok) {
+            console.error(`Failed to load trades: ${response.status} ${response.statusText}`);
+            const tbody = document.getElementById('tradesTableBody');
+            tbody.innerHTML = '<tr><td colspan="6" class="empty-state" style="color: #f44336;">Failed to load trades. Please try again.</td></tr>';
+            return;
+        }
 
         const allTrades = await response.json();
 
@@ -2400,6 +2411,13 @@ function initAssetAllocationChart() {
     const chartDom = document.getElementById('assetAllocationChart');
     if (!chartDom) return;
 
+    // Safety check: Ensure ECharts library is loaded
+    if (typeof echarts === 'undefined') {
+        console.error('ECharts library not loaded yet. Retrying in 500ms...');
+        setTimeout(initAssetAllocationChart, 500);
+        return;
+    }
+
     assetAllocationChart = echarts.init(chartDom);
 
     const option = {
@@ -2486,7 +2504,7 @@ async function loadAssetAllocation() {
 
     } catch (error) {
         console.error('Error loading asset allocation:', error);
-        showNotification('Failed to load asset allocation', 'error');
+        showToast('Failed to load asset allocation', 'error');
     }
 }
 
@@ -2606,7 +2624,7 @@ async function loadPerformanceAnalytics() {
 
     } catch (error) {
         console.error('Error loading performance analytics:', error);
-        showNotification('Failed to load performance analytics', 'error');
+        showToast('Failed to load performance analytics', 'error');
     }
 }
 
