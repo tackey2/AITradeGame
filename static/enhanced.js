@@ -168,6 +168,9 @@ function refreshCurrentPage() {
 
 // Auto-refresh
 function startAutoRefresh() {
+    // Clear existing interval first to prevent duplicates
+    stopAutoRefresh();
+
     refreshInterval = setInterval(() => {
         if (currentModelId) {
             const activePage = document.querySelector('.page.active');
@@ -177,6 +180,27 @@ function startAutoRefresh() {
             }
         }
     }, 10000); // Every 10 seconds
+}
+
+function stopAutoRefresh() {
+    if (refreshInterval) {
+        clearInterval(refreshInterval);
+        refreshInterval = null;
+    }
+}
+
+function disposeCharts() {
+    // Dispose portfolio chart
+    if (typeof portfolioChart !== 'undefined' && portfolioChart) {
+        portfolioChart.dispose();
+        portfolioChart = null;
+    }
+
+    // Dispose asset allocation chart
+    if (typeof assetAllocationChart !== 'undefined' && assetAllocationChart) {
+        assetAllocationChart.dispose();
+        assetAllocationChart = null;
+    }
 }
 
 // Load Models
@@ -211,8 +235,25 @@ async function loadModels() {
 
 // Load Model Data
 async function loadModelData() {
+    // Clean up resources from previous model
+    stopAutoRefresh();
+    disposeCharts();
+
+    // Clear enhanced auto-refresh intervals
+    if (typeof autoRefreshIntervals !== 'undefined') {
+        Object.values(autoRefreshIntervals).forEach(id => clearInterval(id));
+        autoRefreshIntervals = {};
+    }
+
+    // Load new model data
     await loadTradingMode();
     await loadDashboardData();
+
+    // Restart auto-refresh with new model
+    startAutoRefresh();
+    if (typeof setupAutoRefresh !== 'undefined') {
+        setupAutoRefresh();
+    }
 }
 
 async function loadDashboardData() {
@@ -1746,6 +1787,11 @@ async function initPortfolioChart() {
     const chartDom = document.getElementById('portfolioChart');
     if (!chartDom) return;
 
+    // Dispose existing chart first to prevent memory leak
+    if (portfolioChart) {
+        portfolioChart.dispose();
+    }
+
     // Initialize chart
     portfolioChart = echarts.init(chartDom);
 
@@ -2444,6 +2490,11 @@ function initAssetAllocationChart() {
         console.error('ECharts library not loaded yet. Retrying in 500ms...');
         setTimeout(initAssetAllocationChart, 500);
         return;
+    }
+
+    // Dispose existing chart first to prevent memory leak
+    if (assetAllocationChart) {
+        assetAllocationChart.dispose();
     }
 
     assetAllocationChart = echarts.init(chartDom);
