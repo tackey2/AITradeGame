@@ -721,6 +721,10 @@ async function loadPendingDecisions() {
                     <p>No pending decisions</p>
                 </div>
             `;
+            // Monitor for notifications
+            if (typeof monitorPendingDecisions === 'function') {
+                monitorPendingDecisions(decisions);
+            }
             return;
         }
 
@@ -733,6 +737,11 @@ async function loadPendingDecisions() {
                 showDecisionDetail(decisionId);
             });
         });
+
+        // Monitor pending decisions for notifications
+        if (typeof monitorPendingDecisions === 'function') {
+            monitorPendingDecisions(decisions);
+        }
     } catch (error) {
         console.error('Failed to load pending decisions:', error);
     }
