@@ -97,6 +97,11 @@
             <div class="section">
                 <div class="section-header">
                     <h2>Select Model</h2>
+                    <div class="header-actions">
+                        <button id="compareModelsBtn" class="btn-primary" style="display: none;">
+                            <i class="bi bi-bar-chart-line"></i> Compare Models
+                        </button>
+                    </div>
                 </div>
                 <div class="model-selector">
                     <select id="modelSelect" class="form-select">
@@ -108,6 +113,97 @@
                     <button id="showSingleModelBtn" class="btn-secondary" style="margin-left: 10px; display: none;">
                         <i class="bi bi-graph-up"></i> Show Single Model
                     </button>
+                </div>
+            </div>
+
+            <!-- Multi-Model Comparison Modal -->
+            <div class="modal" id="compareModelsModal" style="display: none;">
+                <div class="modal-overlay" onclick="closeCompareModelsModal()"></div>
+                <div class="modal-content large-modal">
+                    <div class="modal-header">
+                        <h3><i class="bi bi-bar-chart-line"></i> Multi-Model Comparison</h3>
+                        <button class="btn-icon" onclick="closeCompareModelsModal()">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <!-- Model Selection -->
+                        <div class="comparison-model-selection">
+                            <h4>Select Models to Compare (2-5 models)</h4>
+                            <div id="comparisonModelCheckboxes" class="model-checkbox-grid">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+
+                        <!-- Comparison Chart -->
+                        <div class="comparison-chart-section">
+                            <h4>Portfolio Value Comparison</h4>
+                            <div id="comparisonChart" style="width: 100%; height: 400px;"></div>
+                        </div>
+
+                        <!-- Comparison Table -->
+                        <div class="comparison-table-section">
+                            <h4>Performance Metrics Comparison</h4>
+                            <div class="table-container">
+                                <table class="data-table comparison-table" id="comparisonTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Model</th>
+                                            <th>Total Value</th>
+                                            <th>Total Return</th>
+                                            <th>Win Rate</th>
+                                            <th>Sharpe Ratio</th>
+                                            <th>Max Drawdown</th>
+                                            <th>Trades</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="comparisonTableBody">
+                                        <tr><td colspan="7">Select models to compare</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Market Overview Section -->
+            <div class="section">
+                <div class="section-header">
+                    <h2>🌐 Market Overview</h2>
+                    <button class="btn-icon" id="refreshMarketBtn" title="Refresh Market Data">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </div>
+                <div class="market-overview-grid">
+                    <div class="market-overview-card" id="marketSentimentCard">
+                        <div class="overview-icon">📊</div>
+                        <div class="overview-content">
+                            <div class="overview-label">Market Sentiment</div>
+                            <div class="overview-value" id="marketSentiment">--</div>
+                        </div>
+                    </div>
+                    <div class="market-overview-card" id="topGainerCard">
+                        <div class="overview-icon">📈</div>
+                        <div class="overview-content">
+                            <div class="overview-label">Top Gainer (24h)</div>
+                            <div class="overview-value positive" id="topGainer">--</div>
+                        </div>
+                    </div>
+                    <div class="market-overview-card" id="topLoserCard">
+                        <div class="overview-icon">📉</div>
+                        <div class="overview-content">
+                            <div class="overview-label">Top Loser (24h)</div>
+                            <div class="overview-value negative" id="topLoser">--</div>
+                        </div>
+                    </div>
+                    <div class="market-overview-card" id="totalVolumeCard">
+                        <div class="overview-icon">💰</div>
+                        <div class="overview-content">
+                            <div class="overview-label">Tracked Coins</div>
+                            <div class="overview-value" id="trackedCoins">6</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -534,6 +630,22 @@
                                 <div class="empty-state">
                                     <i class="bi bi-chat-dots"></i>
                                     <p>No conversations yet</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- AI Model Settings Widget -->
+                        <div class="data-section">
+                            <div class="section-header">
+                                <h3>⚙️ Model Settings</h3>
+                                <button class="btn-icon" id="editModelSettingsBtn" title="Edit Settings">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                            </div>
+                            <div id="modelSettingsWidget" class="model-settings-widget">
+                                <div class="empty-state">
+                                    <i class="bi bi-gear"></i>
+                                    <p>Select a model to view settings</p>
                                 </div>
                             </div>
                         </div>
@@ -1368,6 +1480,9 @@
     <script src="/static/decision-history.js"></script>
     <script src="/static/activity-feed.js"></script>
     <script src="/static/trade-analytics.js"></script>
+    <script src="/static/model-comparison.js"></script>
+    <script src="/static/model-settings-widget.js"></script>
+    <script src="/static/market-overview.js"></script>
     <script src="/static/enhanced.js"></script>
     <script src="/static/risk_profiles.js"></script>
 </body>
