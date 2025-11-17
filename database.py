@@ -317,12 +317,33 @@ class Database:
         conn.commit()
         conn.close()
     
-    def get_account_value_history(self, model_id: int, limit: int = 100) -> List[Dict]:
-        """Get account value history"""
+    def get_account_value_history(self, model_id: int, limit: int = 100, time_range: str = None) -> List[Dict]:
+        """Get account value history with optional time range filtering"""
         conn = self.get_connection()
         cursor = conn.cursor()
-        cursor.execute('''
-            SELECT * FROM account_values WHERE model_id = ?
+
+        # Calculate time threshold based on range
+        time_filter = ""
+        if time_range:
+            from datetime import datetime, timedelta
+            now = datetime.now()
+
+            if time_range == '24h':
+                threshold = now - timedelta(hours=24)
+            elif time_range == '7d':
+                threshold = now - timedelta(days=7)
+            elif time_range == '30d':
+                threshold = now - timedelta(days=30)
+            elif time_range == '90d':
+                threshold = now - timedelta(days=90)
+            else:  # 'all' or any other value
+                threshold = None
+
+            if threshold:
+                time_filter = f" AND timestamp >= '{threshold.strftime('%Y-%m-%d %H:%M:%S')}'"
+
+        cursor.execute(f'''
+            SELECT * FROM account_values WHERE model_id = ?{time_filter}
             ORDER BY timestamp DESC LIMIT ?
         ''', (model_id, limit))
         rows = cursor.fetchall()

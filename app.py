@@ -289,10 +289,13 @@ def delete_model(model_id):
 def get_portfolio(model_id):
     prices_data = market_fetcher.get_current_prices(['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE'])
     current_prices = {coin: prices_data[coin]['price'] for coin in prices_data}
-    
+
+    # Get time range from query parameters
+    time_range = request.args.get('range', None)
+
     portfolio = db.get_portfolio(model_id, current_prices)
-    account_value = db.get_account_value_history(model_id, limit=100)
-    
+    account_value = db.get_account_value_history(model_id, limit=1000, time_range=time_range)
+
     return jsonify({
         'portfolio': portfolio,
         'account_value_history': account_value
@@ -497,6 +500,9 @@ def get_performance_analytics(model_id):
             'avg_win': 0,
             'avg_loss': 0,
             'profit_factor': 0,
+            'win_rate': 0,
+            'total_return': 0,
+            'total_return_pct': 0,
             'total_trades': len(trades)
         }
 
@@ -506,6 +512,15 @@ def get_performance_analytics(model_id):
         # Separate winning and losing trades
         winning_trades = [t for t in trades if t.get('pnl', 0) > 0]
         losing_trades = [t for t in trades if t.get('pnl', 0) < 0]
+
+        # Calculate win rate
+        if len(trades) > 0:
+            analytics['win_rate'] = (len(winning_trades) / len(trades)) * 100
+
+        # Calculate total return
+        total_pnl = sum(t.get('pnl', 0) for t in trades)
+        analytics['total_return'] = total_pnl
+        analytics['total_return_pct'] = (total_pnl / initial_capital * 100) if initial_capital > 0 else 0
 
         # Calculate best and worst trades
         if trades:

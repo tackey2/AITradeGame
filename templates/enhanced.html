@@ -250,6 +250,22 @@
                                     <div class="perf-metric-desc">Wins / Losses ratio</div>
                                 </div>
                             </div>
+                            <div class="perf-metric-card">
+                                <div class="perf-metric-icon">🎯</div>
+                                <div class="perf-metric-content">
+                                    <div class="perf-metric-label">Win Rate</div>
+                                    <div class="perf-metric-value" id="winRate">--</div>
+                                    <div class="perf-metric-desc">Profitable trades %</div>
+                                </div>
+                            </div>
+                            <div class="perf-metric-card">
+                                <div class="perf-metric-icon">💎</div>
+                                <div class="perf-metric-content">
+                                    <div class="perf-metric-label">Total Return</div>
+                                    <div class="perf-metric-value" id="totalReturn">--</div>
+                                    <div class="perf-metric-desc">Overall profit/loss</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -330,26 +346,41 @@
                                 <div class="risk-card-compact">
                                     <div class="risk-label">Position Size</div>
                                     <div class="risk-value" id="riskPositionSize">--</div>
+                                    <div class="risk-progress-bar">
+                                        <div class="risk-progress-fill" id="progressPositionSize"></div>
+                                    </div>
                                     <div class="risk-status status-ok" id="statusPositionSize">OK</div>
                                 </div>
                                 <div class="risk-card-compact">
                                     <div class="risk-label">Daily Loss</div>
                                     <div class="risk-value" id="riskDailyLoss">--</div>
+                                    <div class="risk-progress-bar">
+                                        <div class="risk-progress-fill" id="progressDailyLoss"></div>
+                                    </div>
                                     <div class="risk-status status-ok" id="statusDailyLoss">OK</div>
                                 </div>
                                 <div class="risk-card-compact">
                                     <div class="risk-label">Open Positions</div>
                                     <div class="risk-value" id="riskOpenPositions">--</div>
+                                    <div class="risk-progress-bar">
+                                        <div class="risk-progress-fill" id="progressOpenPositions"></div>
+                                    </div>
                                     <div class="risk-status status-ok" id="statusOpenPositions">OK</div>
                                 </div>
                                 <div class="risk-card-compact">
                                     <div class="risk-label">Cash Reserve</div>
                                     <div class="risk-value" id="riskCashReserve">--</div>
+                                    <div class="risk-progress-bar">
+                                        <div class="risk-progress-fill" id="progressCashReserve"></div>
+                                    </div>
                                     <div class="risk-status status-ok" id="statusCashReserve">OK</div>
                                 </div>
                                 <div class="risk-card-compact">
                                     <div class="risk-label">Daily Trades</div>
                                     <div class="risk-value" id="riskDailyTrades">--</div>
+                                    <div class="risk-progress-bar">
+                                        <div class="risk-progress-fill" id="progressDailyTrades"></div>
+                                    </div>
                                     <div class="risk-status status-ok" id="statusDailyTrades">OK</div>
                                 </div>
                             </div>
