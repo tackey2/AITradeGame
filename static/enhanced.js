@@ -4,10 +4,55 @@ let currentModelId = null;
 let currentDecisionId = null;
 let refreshInterval = null;
 
-// Initialize on page load
+// Initialize on page load - CONSOLIDATED from multiple listeners
 document.addEventListener('DOMContentLoaded', () => {
+    // Core initialization
     initializeApp();
     setupEventListeners();
+
+    // Exchange credentials (from second listener)
+    const modelSelect = document.getElementById('modelSelect');
+    if (modelSelect) {
+        modelSelect.addEventListener('change', function() {
+            if (typeof loadExchangeCredentials !== 'undefined') {
+                loadExchangeCredentials();
+            }
+        });
+    }
+    if (typeof initExchangeCredentials !== 'undefined') {
+        initExchangeCredentials();
+    }
+
+    // Initialize provider/model management (from second listener)
+    if (typeof initProviderManagement !== 'undefined') {
+        initProviderManagement();
+    }
+    if (typeof initModelManagement !== 'undefined') {
+        initModelManagement();
+    }
+    if (typeof initTrendingData !== 'undefined') {
+        initTrendingData();
+    }
+    if (typeof initPasswordToggles !== 'undefined') {
+        initPasswordToggles();
+    }
+
+    // Chart initialization (from third listener)
+    if (document.getElementById('assetAllocationChart')) {
+        if (typeof initAssetAllocationChart !== 'undefined') {
+            initAssetAllocationChart();
+        }
+    }
+
+    // Analytics setup (from third listener)
+    if (typeof setupAnalyticsRefresh !== 'undefined') {
+        setupAnalyticsRefresh();
+    }
+    if (typeof setupConversationFilters !== 'undefined') {
+        setupConversationFilters();
+    }
+
+    // Start auto-refresh last
     startAutoRefresh();
 });
 
@@ -171,39 +216,40 @@ async function loadModelData() {
 }
 
 async function loadDashboardData() {
-    // Load original dashboard data
-    await Promise.all([
-        loadRiskStatus(),
-        loadPendingDecisions()
-    ]);
+    // Helper function to safely load features with error handling
+    const safeLoad = async (name, fn) => {
+        if (typeof fn !== 'undefined') {
+            try {
+                await fn();
+            } catch (error) {
+                console.error(`Failed to load ${name}:`, error);
+                // Don't throw - let other features continue loading
+            }
+        } else {
+            console.warn(`Feature not loaded: ${name}`);
+        }
+    };
 
-    // Load Session 1 enhanced dashboard features
-    if (typeof loadPortfolioMetrics !== 'undefined') {
-        await loadPortfolioMetrics();
-    }
-    if (typeof initPortfolioChart !== 'undefined') {
-        await initPortfolioChart();
-    }
-    if (typeof loadPositionsTable !== 'undefined') {
-        await loadPositionsTable();
-    }
-    if (typeof loadTradeHistory !== 'undefined') {
-        await loadTradeHistory();
-    }
-    if (typeof updateMarketTicker !== 'undefined') {
-        await updateMarketTicker();
-    }
-    if (typeof loadAIConversations !== 'undefined') {
-        await loadAIConversations();
+    // Load core features (must succeed)
+    try {
+        await Promise.all([
+            loadRiskStatus(),
+            loadPendingDecisions()
+        ]);
+    } catch (error) {
+        console.error('Failed to load core dashboard data:', error);
+        showToast('Failed to load core dashboard data', 'error');
     }
 
-    // Load Session 3 analytics features
-    if (typeof loadAssetAllocation !== 'undefined') {
-        await loadAssetAllocation();
-    }
-    if (typeof loadPerformanceAnalytics !== 'undefined') {
-        await loadPerformanceAnalytics();
-    }
+    // Load enhanced features (graceful failure)
+    await safeLoad('Portfolio Metrics', loadPortfolioMetrics);
+    await safeLoad('Portfolio Chart', initPortfolioChart);
+    await safeLoad('Positions Table', loadPositionsTable);
+    await safeLoad('Trade History', loadTradeHistory);
+    await safeLoad('Market Ticker', updateMarketTicker);
+    await safeLoad('AI Conversations', loadAIConversations);
+    await safeLoad('Asset Allocation', loadAssetAllocation);
+    await safeLoad('Performance Analytics', loadPerformanceAnalytics);
 }
 
 // Trading Configuration (Environment + Automation)
@@ -1129,25 +1175,7 @@ const originalModelSelect = document.getElementById('modelSelect')?.addEventList
     // ... existing model select code ...
 });
 
-// Initialize exchange credentials when model changes
-document.addEventListener('DOMContentLoaded', function() {
-    // Wait for model selection
-    const modelSelect = document.getElementById('modelSelect');
-    if (modelSelect) {
-        modelSelect.addEventListener('change', function() {
-            loadExchangeCredentials();
-        });
-    }
-
-    // Initialize exchange credentials functionality
-    initExchangeCredentials();
-
-    // Initialize new features
-    initProviderManagement();
-    initModelManagement();
-    initTrendingData();
-    initPasswordToggles();
-});
+// REMOVED: Duplicate DOMContentLoaded listener - consolidated at line 8
 
 // ===================================================
 //      AI Provider Management
@@ -2804,13 +2832,4 @@ if (window.setupAutoRefresh) {
     };
 }
 
-// Initialize Session 3 features when page loads
-document.addEventListener('DOMContentLoaded', () => {
-    // Initialize asset allocation chart
-    if (document.getElementById('assetAllocationChart')) {
-        initAssetAllocationChart();
-    }
-
-    setupAnalyticsRefresh();
-    setupConversationFilters();
-});
+// REMOVED: Duplicate DOMContentLoaded listener - consolidated at line 8
