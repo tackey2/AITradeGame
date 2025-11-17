@@ -2287,55 +2287,7 @@ async function updateMarketTicker() {
 }
 
 // Load AI Conversations
-async function loadAIConversations() {
-    if (!currentModelId) return;
-
-    try {
-        const response = await fetch(`/api/models/${currentModelId}/conversations?limit=5`);
-        if (!response.ok) return;
-
-        const conversations = await response.json();
-
-        const container = document.getElementById('conversationsContainer');
-
-        if (conversations.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <i class="bi bi-chat-dots"></i>
-                    <p>No conversations yet</p>
-                </div>
-            `;
-            return;
-        }
-
-        container.innerHTML = conversations.map(conv => {
-            const statusClass = conv.approved ? 'approved' : conv.rejected ? 'rejected' : 'pending';
-            const statusText = conv.approved ? '✅ Approved' : conv.rejected ? '❌ Rejected' : '⏳ Pending';
-
-            return `
-                <div class="conversation-item">
-                    <div class="conversation-header">
-                        <span class="conversation-model">Model ${currentModelId}</span>
-                        <span class="conversation-time">${formatDate(conv.timestamp)}</span>
-                    </div>
-                    <div class="conversation-summary">
-                        💭 "${conv.ai_reasoning ? conv.ai_reasoning.substring(0, 100) + '...' : 'No reasoning provided'}"
-                    </div>
-                    <div class="conversation-decision">
-                        → Decision: ${conv.decision_type} ${conv.coin || ''} ${conv.amount ? conv.amount + ' at $' + conv.price : ''}
-                    </div>
-                    <div class="conversation-status">
-                        <span class="conversation-badge ${statusClass}">${statusText}</span>
-                        <button class="view-full-btn" onclick="viewConversation(${conv.id})">View Full ▶️</button>
-                    </div>
-                </div>
-            `;
-        }).join('');
-
-    } catch (error) {
-        console.error('Failed to load AI conversations:', error);
-    }
-}
+// REMOVED: Duplicate loadAIConversations function - using the better version at line ~2940
 
 // Close Position (placeholder)
 function closePosition(coin) {
@@ -2474,7 +2426,6 @@ console.log('✓ Enhanced Dashboard Features Loaded');
 // MODELS PAGE - Session 2
 // ========================================
 
-let multiModelEnabled = false;
 let allModelsData = [];
 let modelsFilter = 'all';
 
@@ -2489,8 +2440,8 @@ async function loadModelsPage() {
         const data = await response.json();
         allModelsData = data.models || [];
 
-        // Update aggregated metrics if multi-model is enabled
-        if (multiModelEnabled && allModelsData.length > 0) {
+        // Always show aggregated metrics (simplified - no toggle needed)
+        if (allModelsData.length > 0 && data.aggregated) {
             updateAggregatedMetrics(data.aggregated);
             document.getElementById('aggregatedSection').style.display = 'block';
         } else {
@@ -2677,25 +2628,7 @@ function toggleModelStatus(modelId, isCurrentlyActive) {
     }, 1000);
 }
 
-// Multi-Model Toggle Handler
-document.getElementById('multiModelToggle')?.addEventListener('change', function() {
-    multiModelEnabled = this.checked;
-
-    const statusDiv = document.getElementById('multiModelStatus');
-
-    if (multiModelEnabled) {
-        statusDiv.innerHTML = '<i class="bi bi-check-circle"></i> <span>Multi-model trading is enabled - All active models will trade independently</span>';
-        statusDiv.classList.add('active');
-        showToast('✓ Multi-model trading enabled', 'success');
-    } else {
-        statusDiv.innerHTML = '<i class="bi bi-info-circle"></i> <span>Multi-model trading is currently disabled</span>';
-        statusDiv.classList.remove('active');
-        showToast('Multi-model trading disabled', 'info');
-    }
-
-    // Reload page to show/hide aggregated metrics
-    loadModelsPage();
-});
+// Multi-Model Toggle Handler - REMOVED (not needed, models always trade independently)
 
 // Models Filter Handler
 document.getElementById('modelsFilter')?.addEventListener('change', function() {
