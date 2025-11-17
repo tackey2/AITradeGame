@@ -1343,6 +1343,48 @@ def get_all_pending_decisions():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/decision-history', methods=['GET'])
+def get_decision_history():
+    """Get decision history with filtering options"""
+    try:
+        model_id = request.args.get('model_id', type=int)
+        status_filter = request.args.get('status', None)  # 'pending', 'approved', 'rejected', 'expired', or None for all
+        limit = request.args.get('limit', 100, type=int)
+
+        conn = enhanced_db.get_connection()
+        cursor = conn.cursor()
+
+        # Build query with filters
+        query = 'SELECT * FROM pending_decisions WHERE 1=1'
+        params = []
+
+        if model_id:
+            query += ' AND model_id = ?'
+            params.append(model_id)
+
+        if status_filter:
+            query += ' AND status = ?'
+            params.append(status_filter)
+
+        query += ' ORDER BY created_at DESC LIMIT ?'
+        params.append(limit)
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        conn.close()
+
+        decisions = []
+        for row in rows:
+            data = dict(row)
+            data['decision_data'] = json.loads(data['decision_data'])
+            if data['explanation_data']:
+                data['explanation_data'] = json.loads(data['explanation_data'])
+            decisions.append(data)
+
+        return jsonify(decisions)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/pending-decisions/<int:decision_id>/approve', methods=['POST'])
 def approve_pending_decision(decision_id):
     """Approve a pending decision"""

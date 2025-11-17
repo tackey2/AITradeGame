@@ -420,16 +420,37 @@
                             </div>
                         </div>
 
-                        <!-- Pending Decisions (keep existing) -->
+                        <!-- Decision History (Enhanced with tabs) -->
                         <div class="data-section">
                             <div class="section-header">
-                                <h3>Pending Decisions</h3>
+                                <h3>🤖 Decision History</h3>
                                 <span class="badge" id="pendingCount">0</span>
                             </div>
-                            <div id="pendingDecisionsContainer">
+
+                            <!-- Decision Tabs -->
+                            <div class="decision-tabs">
+                                <button class="decision-tab active" data-status="pending">
+                                    <i class="bi bi-clock-history"></i> Pending
+                                </button>
+                                <button class="decision-tab" data-status="approved">
+                                    <i class="bi bi-check-circle"></i> Approved
+                                </button>
+                                <button class="decision-tab" data-status="rejected">
+                                    <i class="bi bi-x-circle"></i> Rejected
+                                </button>
+                                <button class="decision-tab" data-status="expired">
+                                    <i class="bi bi-stopwatch"></i> Expired
+                                </button>
+                                <button class="decision-tab" data-status="all">
+                                    <i class="bi bi-list"></i> All
+                                </button>
+                            </div>
+
+                            <!-- Decision Container -->
+                            <div id="pendingDecisionsContainer" class="decisions-container">
                                 <div class="empty-state">
                                     <i class="bi bi-inbox"></i>
-                                    <p>No pending decisions</p>
+                                    <p>No decisions yet</p>
                                 </div>
                             </div>
                         </div>
@@ -465,6 +486,22 @@
                                 <div class="empty-state">
                                     <i class="bi bi-chat-dots"></i>
                                     <p>No conversations yet</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Live Activity Feed -->
+                        <div class="data-section">
+                            <div class="section-header">
+                                <h3>📊 Live Activity</h3>
+                                <button class="btn-icon" id="clearActivityBtn" title="Clear Activity">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                            <div id="activityFeedContainer" class="activity-feed-container">
+                                <div class="empty-state">
+                                    <i class="bi bi-activity"></i>
+                                    <p>No recent activity</p>
                                 </div>
                             </div>
                         </div>
@@ -1280,6 +1317,8 @@
 
     <script src="/static/notifications.js"></script>
     <script src="/static/exports.js"></script>
+    <script src="/static/decision-history.js"></script>
+    <script src="/static/activity-feed.js"></script>
     <script src="/static/enhanced.js"></script>
     <script src="/static/risk_profiles.js"></script>
 </body>
