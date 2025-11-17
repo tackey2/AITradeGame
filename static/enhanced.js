@@ -198,8 +198,13 @@ function startAutoRefresh() {
         if (currentModelId) {
             const activePage = document.querySelector('.page.active');
             if (activePage && activePage.id === 'dashboardPage') {
+                // Refresh all dashboard data like classic view
                 loadPendingDecisions();
                 loadRiskStatus();
+                loadPortfolioChartData(currentTimeRange); // Match classic view's 10-second refresh
+                loadPortfolioMetrics();
+                loadPositionsTable();
+                loadAssetAllocation();
             }
         }
     }, 10000); // Every 10 seconds
@@ -2114,6 +2119,7 @@ async function loadPortfolioChartData(range) {
             },
             yAxis: {
                 type: 'value',
+                scale: true,  // Dynamic scaling to show value changes more clearly
                 axisLine: { lineStyle: { color: '#3c4556' } },
                 axisLabel: {
                     color: '#9aa0a6',
