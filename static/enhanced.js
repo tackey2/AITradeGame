@@ -480,7 +480,8 @@ async function loadDashboardData() {
             updateMarketTicker().catch(e => console.error('Market ticker:', e)),
             loadAIConversations().catch(e => console.error('AI conversations:', e)),
             loadAssetAllocation().catch(e => console.error('Asset allocation:', e)),
-            loadPerformanceAnalytics().catch(e => console.error('Performance analytics:', e))
+            loadPerformanceAnalytics().catch(e => console.error('Performance analytics:', e)),
+            (typeof loadTradeAnalytics === 'function' ? loadTradeAnalytics() : Promise.resolve()).catch(e => console.error('Trade analytics:', e))
         ]);
     } catch (error) {
         console.error('Failed to load dashboard data:', error);
