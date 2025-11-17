@@ -301,13 +301,13 @@ def get_portfolio(model_id):
 @app.route('/api/models/<int:model_id>/trades', methods=['GET'])
 def get_trades(model_id):
     limit = request.args.get('limit', 50, type=int)
-    trades = db.get_trades(model_id, limit=limit)
+    trades = enhanced_db.get_trades(model_id, limit=limit)
     return jsonify(trades)
 
 @app.route('/api/models/<int:model_id>/conversations', methods=['GET'])
 def get_conversations(model_id):
     limit = request.args.get('limit', 20, type=int)
-    conversations = db.get_conversations(model_id, limit=limit)
+    conversations = enhanced_db.get_conversations(model_id, limit=limit)
     return jsonify(conversations)
 
 @app.route('/api/models/<int:model_id>/portfolio-metrics', methods=['GET'])

@@ -4,10 +4,55 @@ let currentModelId = null;
 let currentDecisionId = null;
 let refreshInterval = null;
 
-// Initialize on page load
+// Initialize on page load - CONSOLIDATED from multiple listeners
 document.addEventListener('DOMContentLoaded', () => {
+    // Core initialization
     initializeApp();
     setupEventListeners();
+
+    // Exchange credentials (from second listener)
+    const modelSelect = document.getElementById('modelSelect');
+    if (modelSelect) {
+        modelSelect.addEventListener('change', function() {
+            if (typeof loadExchangeCredentials !== 'undefined') {
+                loadExchangeCredentials();
+            }
+        });
+    }
+    if (typeof initExchangeCredentials !== 'undefined') {
+        initExchangeCredentials();
+    }
+
+    // Initialize provider/model management (from second listener)
+    if (typeof initProviderManagement !== 'undefined') {
+        initProviderManagement();
+    }
+    if (typeof initModelManagement !== 'undefined') {
+        initModelManagement();
+    }
+    if (typeof initTrendingData !== 'undefined') {
+        initTrendingData();
+    }
+    if (typeof initPasswordToggles !== 'undefined') {
+        initPasswordToggles();
+    }
+
+    // Chart initialization (from third listener)
+    if (document.getElementById('assetAllocationChart')) {
+        if (typeof initAssetAllocationChart !== 'undefined') {
+            initAssetAllocationChart();
+        }
+    }
+
+    // Analytics setup (from third listener)
+    if (typeof setupAnalyticsRefresh !== 'undefined') {
+        setupAnalyticsRefresh();
+    }
+    if (typeof setupConversationFilters !== 'undefined') {
+        setupConversationFilters();
+    }
+
+    // Start auto-refresh last
     startAutoRefresh();
 });
 
@@ -123,6 +168,9 @@ function refreshCurrentPage() {
 
 // Auto-refresh
 function startAutoRefresh() {
+    // Clear existing interval first to prevent duplicates
+    stopAutoRefresh();
+
     refreshInterval = setInterval(() => {
         if (currentModelId) {
             const activePage = document.querySelector('.page.active');
@@ -132,6 +180,27 @@ function startAutoRefresh() {
             }
         }
     }, 10000); // Every 10 seconds
+}
+
+function stopAutoRefresh() {
+    if (refreshInterval) {
+        clearInterval(refreshInterval);
+        refreshInterval = null;
+    }
+}
+
+function disposeCharts() {
+    // Dispose portfolio chart
+    if (typeof portfolioChart !== 'undefined' && portfolioChart) {
+        portfolioChart.dispose();
+        portfolioChart = null;
+    }
+
+    // Dispose asset allocation chart
+    if (typeof assetAllocationChart !== 'undefined' && assetAllocationChart) {
+        assetAllocationChart.dispose();
+        assetAllocationChart = null;
+    }
 }
 
 // Load Models
@@ -166,15 +235,62 @@ async function loadModels() {
 
 // Load Model Data
 async function loadModelData() {
+    // Clean up resources from previous model
+    stopAutoRefresh();
+    disposeCharts();
+
+    // Clear enhanced auto-refresh intervals
+    if (typeof autoRefreshIntervals !== 'undefined') {
+        Object.values(autoRefreshIntervals).forEach(id => clearInterval(id));
+        autoRefreshIntervals = {};
+    }
+
+    // Load new model data
     await loadTradingMode();
     await loadDashboardData();
+
+    // Restart auto-refresh with new model
+    startAutoRefresh();
+    if (typeof setupAutoRefresh !== 'undefined') {
+        setupAutoRefresh();
+    }
 }
 
 async function loadDashboardData() {
-    await Promise.all([
-        loadRiskStatus(),
-        loadPendingDecisions()
-    ]);
+    // Helper function to safely load features with error handling
+    const safeLoad = async (name, fn) => {
+        if (typeof fn !== 'undefined') {
+            try {
+                await fn();
+            } catch (error) {
+                console.error(`Failed to load ${name}:`, error);
+                // Don't throw - let other features continue loading
+            }
+        } else {
+            console.warn(`Feature not loaded: ${name}`);
+        }
+    };
+
+    // Load core features (must succeed)
+    try {
+        await Promise.all([
+            loadRiskStatus(),
+            loadPendingDecisions()
+        ]);
+    } catch (error) {
+        console.error('Failed to load core dashboard data:', error);
+        showToast('Failed to load core dashboard data', 'error');
+    }
+
+    // Load enhanced features (graceful failure)
+    await safeLoad('Portfolio Metrics', loadPortfolioMetrics);
+    await safeLoad('Portfolio Chart', initPortfolioChart);
+    await safeLoad('Positions Table', loadPositionsTable);
+    await safeLoad('Trade History', loadTradeHistory);
+    await safeLoad('Market Ticker', updateMarketTicker);
+    await safeLoad('AI Conversations', loadAIConversations);
+    await safeLoad('Asset Allocation', loadAssetAllocation);
+    await safeLoad('Performance Analytics', loadPerformanceAnalytics);
 }
 
 // Trading Configuration (Environment + Automation)
@@ -1100,25 +1216,7 @@ const originalModelSelect = document.getElementById('modelSelect')?.addEventList
     // ... existing model select code ...
 });
 
-// Initialize exchange credentials when model changes
-document.addEventListener('DOMContentLoaded', function() {
-    // Wait for model selection
-    const modelSelect = document.getElementById('modelSelect');
-    if (modelSelect) {
-        modelSelect.addEventListener('change', function() {
-            loadExchangeCredentials();
-        });
-    }
-
-    // Initialize exchange credentials functionality
-    initExchangeCredentials();
-
-    // Initialize new features
-    initProviderManagement();
-    initModelManagement();
-    initTrendingData();
-    initPasswordToggles();
-});
+// REMOVED: Duplicate DOMContentLoaded listener - consolidated at line 8
 
 // ===================================================
 //      AI Provider Management
@@ -1625,7 +1723,12 @@ async function loadPortfolioMetrics() {
     try {
         const response = await fetch(`/api/models/${currentModelId}/portfolio-metrics`);
         if (!response.ok) {
-            console.warn('Portfolio metrics endpoint failed:', response.status);
+            console.error(`Portfolio metrics endpoint failed: ${response.status} ${response.statusText}`);
+            // Show error state in UI
+            document.getElementById('totalValue').textContent = 'Error loading';
+            document.getElementById('totalPnL').textContent = 'Error loading';
+            document.getElementById('todayPnL').textContent = 'Error loading';
+            showToast('Failed to load portfolio metrics', 'error');
             return;
         }
 
@@ -1674,14 +1777,20 @@ function updateMetricChange(elementId, value, percent) {
 async function initPortfolioChart() {
     if (!currentModelId) return;
 
-    // Check if ECharts is loaded
+    // Safety check: Ensure ECharts library is loaded
     if (typeof echarts === 'undefined') {
-        console.error('ECharts not loaded');
+        console.error('ECharts library not loaded yet. Retrying in 500ms...');
+        setTimeout(initPortfolioChart, 500);
         return;
     }
 
     const chartDom = document.getElementById('portfolioChart');
     if (!chartDom) return;
+
+    // Dispose existing chart first to prevent memory leak
+    if (portfolioChart) {
+        portfolioChart.dispose();
+    }
 
     // Initialize chart
     portfolioChart = echarts.init(chartDom);
@@ -1836,7 +1945,12 @@ async function loadTradeHistory(page = 1) {
 
     try {
         const response = await fetch(`/api/models/${currentModelId}/trades?limit=1000`);
-        if (!response.ok) return;
+        if (!response.ok) {
+            console.error(`Failed to load trades: ${response.status} ${response.statusText}`);
+            const tbody = document.getElementById('tradesTableBody');
+            tbody.innerHTML = '<tr><td colspan="6" class="empty-state" style="color: #f44336;">Failed to load trades. Please try again.</td></tr>';
+            return;
+        }
 
         const allTrades = await response.json();
 
@@ -2095,27 +2209,8 @@ document.addEventListener('visibilitychange', () => {
     }
 });
 
-// Enhanced loadDashboardData function
-const originalLoadDashboardData = typeof loadDashboardData !== 'undefined' ? loadDashboardData : null;
-loadDashboardData = async function() {
-    if (originalLoadDashboardData) {
-        await originalLoadDashboardData();
-    }
-
-    // Load new dashboard features
-    await loadPortfolioMetrics();
-    await initPortfolioChart();
-    await loadPositionsTable();
-    await loadTradeHistory();
-    await updateMarketTicker();
-    await loadAIConversations();
-};
-
-// Initialize on page load
-if (typeof currentModelId !== 'undefined' && currentModelId) {
-    loadDashboardData();
-    setupAutoRefresh();
-}
+// NOTE: loadDashboardData() has been updated in the main section to include all enhanced features
+// No need for override here anymore
 
 console.log('✓ Enhanced Dashboard Features Loaded');
 
@@ -2390,6 +2485,18 @@ function initAssetAllocationChart() {
     const chartDom = document.getElementById('assetAllocationChart');
     if (!chartDom) return;
 
+    // Safety check: Ensure ECharts library is loaded
+    if (typeof echarts === 'undefined') {
+        console.error('ECharts library not loaded yet. Retrying in 500ms...');
+        setTimeout(initAssetAllocationChart, 500);
+        return;
+    }
+
+    // Dispose existing chart first to prevent memory leak
+    if (assetAllocationChart) {
+        assetAllocationChart.dispose();
+    }
+
     assetAllocationChart = echarts.init(chartDom);
 
     const option = {
@@ -2476,7 +2583,7 @@ async function loadAssetAllocation() {
 
     } catch (error) {
         console.error('Error loading asset allocation:', error);
-        showNotification('Failed to load asset allocation', 'error');
+        showToast('Failed to load asset allocation', 'error');
     }
 }
 
@@ -2596,7 +2703,7 @@ async function loadPerformanceAnalytics() {
 
     } catch (error) {
         console.error('Error loading performance analytics:', error);
-        showNotification('Failed to load performance analytics', 'error');
+        showToast('Failed to load performance analytics', 'error');
     }
 }
 
@@ -2752,18 +2859,7 @@ function sortAndFilterConversations() {
     filterConversations(); // Reapply filters after sorting
 }
 
-// Update the existing loadDashboard function to include analytics
-const originalLoadDashboard = window.loadDashboard;
-window.loadDashboard = async function() {
-    if (originalLoadDashboard) {
-        await originalLoadDashboard();
-    }
-
-    // Initialize and load analytics
-    initAssetAllocationChart();
-    await loadAssetAllocation();
-    await loadPerformanceAnalytics();
-};
+// NOTE: Analytics features are now included in the main loadDashboardData() function
 
 // Update auto-refresh to include analytics
 if (window.setupAutoRefresh) {
@@ -2787,8 +2883,4 @@ if (window.setupAutoRefresh) {
     };
 }
 
-// Initialize Session 3 features when page loads
-document.addEventListener('DOMContentLoaded', () => {
-    setupAnalyticsRefresh();
-    setupConversationFilters();
-});
+// REMOVED: Duplicate DOMContentLoaded listener - consolidated at line 8
