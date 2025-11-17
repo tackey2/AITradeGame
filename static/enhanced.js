@@ -3,6 +3,7 @@
 let currentModelId = null;
 let currentDecisionId = null;
 let refreshInterval = null;
+let trendingInterval = null;
 
 // Initialize on page load - CONSOLIDATED from multiple listeners
 document.addEventListener('DOMContentLoaded', () => {
@@ -261,6 +262,11 @@ async function loadModelData() {
     stopAutoRefresh();
     disposeCharts();
 
+    // FIX: Clean up trending data interval
+    if (typeof cleanupTrendingData !== 'undefined') {
+        cleanupTrendingData();
+    }
+
     // Clear enhanced auto-refresh intervals
     if (typeof autoRefreshIntervals !== 'undefined') {
         Object.values(autoRefreshIntervals).forEach(id => clearInterval(id));
@@ -452,46 +458,39 @@ async function loadMultiModelChart(chartData) {
 }
 
 async function loadDashboardData() {
-    // Helper function to safely load features with error handling
-    const safeLoad = async (name, fn) => {
-        if (typeof fn !== 'undefined') {
-            try {
-                await fn();
-            } catch (error) {
-                console.error(`Failed to load ${name}:`, error);
-                // Don't throw - let other features continue loading
-            }
-        } else {
-            console.warn(`Feature not loaded: ${name}`);
-        }
-    };
-
-    // Load core features (must succeed)
+    // FIX: Use parallel loading like classic view for better performance
     try {
+        // Load core data first (critical)
         await Promise.all([
             loadRiskStatus(),
             loadPendingDecisions()
         ]);
-    } catch (error) {
-        console.error('Failed to load core dashboard data:', error);
-        showToast('Failed to load core dashboard data', 'error');
-    }
 
-    // Load enhanced features (graceful failure)
-    await safeLoad('Portfolio Metrics', loadPortfolioMetrics);
-    await safeLoad('Portfolio Chart', initPortfolioChart);
-    await safeLoad('Positions Table', loadPositionsTable);
-    await safeLoad('Trade History', loadTradeHistory);
-    await safeLoad('Market Ticker', updateMarketTicker);
-    await safeLoad('AI Conversations', loadAIConversations);
-    await safeLoad('Asset Allocation', loadAssetAllocation);
-    await safeLoad('Performance Analytics', loadPerformanceAnalytics);
+        // Load all dashboard features in parallel (faster!)
+        await Promise.all([
+            loadPortfolioMetrics().catch(e => console.error('Portfolio metrics:', e)),
+            initPortfolioChart().catch(e => console.error('Portfolio chart:', e)),
+            loadPositionsTable().catch(e => console.error('Positions:', e)),
+            loadTradeHistory().catch(e => console.error('Trade history:', e)),
+            updateMarketTicker().catch(e => console.error('Market ticker:', e)),
+            loadAIConversations().catch(e => console.error('AI conversations:', e)),
+            loadAssetAllocation().catch(e => console.error('Asset allocation:', e)),
+            loadPerformanceAnalytics().catch(e => console.error('Performance analytics:', e))
+        ]);
+    } catch (error) {
+        console.error('Failed to load dashboard data:', error);
+        showToast('Failed to load some dashboard data', 'error');
+    }
 }
 
 // Trading Configuration (Environment + Automation)
 async function loadTradingMode() {
     try {
         const response = await fetch(`/api/models/${currentModelId}/config`);
+        if (!response.ok) {
+            console.error(`Failed to load config: ${response.status}`);
+            return;
+        }
         const config = await response.json();
 
         const environment = config.environment || 'simulation';
@@ -1824,8 +1823,18 @@ function initTrendingData() {
         loadTrendingData();
     });
 
-    // Auto-refresh every 60 seconds
-    setInterval(loadTrendingData, 60000);
+    // Auto-refresh every 60 seconds - FIX: Store interval to prevent memory leak
+    if (trendingInterval) {
+        clearInterval(trendingInterval);
+    }
+    trendingInterval = setInterval(loadTrendingData, 60000);
+}
+
+function cleanupTrendingData() {
+    if (trendingInterval) {
+        clearInterval(trendingInterval);
+        trendingInterval = null;
+    }
 }
 
 async function loadTrendingData() {
