@@ -7,6 +7,11 @@ let trendingInterval = null;
 
 // Initialize on page load - CONSOLIDATED from multiple listeners
 document.addEventListener('DOMContentLoaded', () => {
+    // CRITICAL: Force close all modals on page load (prevent auto-opening)
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.classList.remove('active');
+    });
+
     // Core initialization
     initializeApp();
     setupEventListeners();
@@ -159,16 +164,7 @@ function setupGlobalModalHandlers() {
     // ESC key closes all modals
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-            // Close all active modals
-            document.querySelectorAll('.modal.active').forEach(modal => {
-                modal.classList.remove('active');
-
-                // Reset forms if they exist
-                const form = modal.querySelector('form');
-                if (form) {
-                    form.reset();
-                }
-            });
+            closeAllModals();
         }
     });
 
@@ -178,15 +174,45 @@ function setupGlobalModalHandlers() {
             // Only close if clicking the overlay itself, not the modal content
             if (e.target === modal) {
                 modal.classList.remove('active');
-
-                // Reset forms if they exist
-                const form = modal.querySelector('form');
-                if (form) {
-                    form.reset();
-                }
+                resetModalForm(modal);
             }
         });
     });
+
+    // Make ALL close buttons work (btn-close, cancel buttons)
+    document.querySelectorAll('.btn-close, [id*="cancel"], [id*="Cancel"], [id*="close"], [id*="Close"]').forEach(btn => {
+        // Remove any existing listeners and add new one
+        const newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+
+        newBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            // Find parent modal and close it
+            const modal = newBtn.closest('.modal');
+            if (modal) {
+                modal.classList.remove('active');
+                resetModalForm(modal);
+            } else {
+                // Fallback: close all modals
+                closeAllModals();
+            }
+        });
+    });
+}
+
+function closeAllModals() {
+    document.querySelectorAll('.modal.active').forEach(modal => {
+        modal.classList.remove('active');
+        resetModalForm(modal);
+    });
+}
+
+function resetModalForm(modal) {
+    const form = modal.querySelector('form');
+    if (form) {
+        form.reset();
+    }
 }
 
 // Page Navigation
