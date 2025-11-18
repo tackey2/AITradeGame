@@ -125,6 +125,119 @@ class Database:
                 VALUES (60, 0.001)
             ''')
 
+        # Price snapshots table (for benchmark calculations)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS price_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                coin TEXT NOT NULL,
+                price REAL NOT NULL,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # Create index for price snapshots
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_coin_timestamp
+            ON price_snapshots (coin, timestamp)
+        ''')
+
+        # Graduation settings table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS graduation_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                strategy_preset TEXT DEFAULT 'quick_test',
+                min_trades INTEGER DEFAULT 20,
+                confidence_level INTEGER DEFAULT 80,
+                min_testing_days INTEGER DEFAULT 14,
+                min_win_rate REAL DEFAULT 50.0,
+                min_sharpe_ratio REAL DEFAULT 0.8,
+                max_drawdown_pct REAL DEFAULT 25.0,
+                min_reasoning_quality REAL DEFAULT 3.5,
+                require_beats_benchmark BOOLEAN DEFAULT 0,
+                require_bear_market_test BOOLEAN DEFAULT 0,
+                require_consistency_check BOOLEAN DEFAULT 0,
+                require_net_profit_positive BOOLEAN DEFAULT 1,
+                min_roi_after_costs REAL DEFAULT 5.0,
+                require_beats_benchmark_after_costs BOOLEAN DEFAULT 0,
+                show_warnings BOOLEAN DEFAULT 1,
+                show_readiness_percentage BOOLEAN DEFAULT 1,
+                highlight_missing_criteria BOOLEAN DEFAULT 1,
+                send_notification_when_ready BOOLEAN DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # Benchmark settings table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS benchmark_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                track_btc_hold BOOLEAN DEFAULT 1,
+                track_eth_hold BOOLEAN DEFAULT 1,
+                track_50_50 BOOLEAN DEFAULT 1,
+                track_equal_weight BOOLEAN DEFAULT 1,
+                custom_allocation TEXT,
+                trading_fee_pct REAL DEFAULT 0.1,
+                slippage_pct REAL DEFAULT 0.05,
+                calc_method TEXT DEFAULT 'match_model',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # Cost tracking settings table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS cost_tracking_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                maker_fee_pct REAL DEFAULT 0.1,
+                taker_fee_pct REAL DEFAULT 0.1,
+                fee_assumption TEXT DEFAULT 'taker',
+                slippage_pct REAL DEFAULT 0.05,
+                track_ai_costs BOOLEAN DEFAULT 1,
+                track_evaluation_costs BOOLEAN DEFAULT 1,
+                show_gross_profit BOOLEAN DEFAULT 1,
+                show_itemized_costs BOOLEAN DEFAULT 1,
+                show_net_profit BOOLEAN DEFAULT 1,
+                show_roi_pct BOOLEAN DEFAULT 1,
+                compare_to_benchmark_net BOOLEAN DEFAULT 1,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # AI costs tracking table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS ai_costs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                model_id INTEGER NOT NULL,
+                cost_type TEXT NOT NULL,
+                tokens_used INTEGER,
+                cost_usd REAL NOT NULL,
+                provider TEXT,
+                model_name TEXT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (model_id) REFERENCES models(id)
+            )
+        ''')
+
+        # Insert default graduation settings if none exist
+        cursor.execute('SELECT COUNT(*) FROM graduation_settings')
+        if cursor.fetchone()[0] == 0:
+            cursor.execute('''
+                INSERT INTO graduation_settings (strategy_preset) VALUES ('quick_test')
+            ''')
+
+        # Insert default benchmark settings if none exist
+        cursor.execute('SELECT COUNT(*) FROM benchmark_settings')
+        if cursor.fetchone()[0] == 0:
+            cursor.execute('''
+                INSERT INTO benchmark_settings DEFAULT VALUES
+            ''')
+
+        # Insert default cost tracking settings if none exist
+        cursor.execute('SELECT COUNT(*) FROM cost_tracking_settings')
+        if cursor.fetchone()[0] == 0:
+            cursor.execute('''
+                INSERT INTO cost_tracking_settings DEFAULT VALUES
+            ''')
+
         conn.commit()
         conn.close()
     
@@ -317,12 +430,33 @@ class Database:
         conn.commit()
         conn.close()
     
-    def get_account_value_history(self, model_id: int, limit: int = 100) -> List[Dict]:
-        """Get account value history"""
+    def get_account_value_history(self, model_id: int, limit: int = 100, time_range: str = None) -> List[Dict]:
+        """Get account value history with optional time range filtering"""
         conn = self.get_connection()
         cursor = conn.cursor()
-        cursor.execute('''
-            SELECT * FROM account_values WHERE model_id = ?
+
+        # Calculate time threshold based on range
+        time_filter = ""
+        if time_range:
+            from datetime import datetime, timedelta
+            now = datetime.now()
+
+            if time_range == '24h':
+                threshold = now - timedelta(hours=24)
+            elif time_range == '7d':
+                threshold = now - timedelta(days=7)
+            elif time_range == '30d':
+                threshold = now - timedelta(days=30)
+            elif time_range == '90d':
+                threshold = now - timedelta(days=90)
+            else:  # 'all' or any other value
+                threshold = None
+
+            if threshold:
+                time_filter = f" AND timestamp >= '{threshold.strftime('%Y-%m-%d %H:%M:%S')}'"
+
+        cursor.execute(f'''
+            SELECT * FROM account_values WHERE model_id = ?{time_filter}
             ORDER BY timestamp DESC LIMIT ?
         ''', (model_id, limit))
         rows = cursor.fetchall()
@@ -594,4 +728,203 @@ class Database:
         cursor.execute(query, params)
         conn.commit()
         conn.close()
+
+    # ============ Price Snapshots (for benchmarks) ============
+
+    def store_price_snapshot(self, coin: str, price: float):
+        """Store price snapshot for benchmark calculations"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO price_snapshots (coin, price) VALUES (?, ?)
+        ''', (coin, price))
+        conn.commit()
+        conn.close()
+
+    def get_price_at_timestamp(self, coin: str, timestamp: str) -> Optional[float]:
+        """Get closest price to a given timestamp"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT price FROM price_snapshots
+            WHERE coin = ? AND timestamp <= ?
+            ORDER BY timestamp DESC LIMIT 1
+        ''', (coin, timestamp))
+        row = cursor.fetchone()
+        conn.close()
+        return row['price'] if row else None
+
+    def get_earliest_price_snapshot(self, coin: str) -> Optional[Dict]:
+        """Get earliest price snapshot for a coin"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT price, timestamp FROM price_snapshots
+            WHERE coin = ?
+            ORDER BY timestamp ASC LIMIT 1
+        ''', (coin,))
+        row = cursor.fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+    # ============ Graduation Settings ============
+
+    def get_graduation_settings(self) -> Dict:
+        """Get graduation settings"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM graduation_settings ORDER BY id DESC LIMIT 1')
+        row = cursor.fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+    def update_graduation_settings(self, settings: Dict):
+        """Update graduation settings"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        # Get existing settings ID
+        cursor.execute('SELECT id FROM graduation_settings ORDER BY id DESC LIMIT 1')
+        row = cursor.fetchone()
+        settings_id = row['id'] if row else None
+
+        if settings_id:
+            # Update existing
+            updates = ', '.join([f"{key} = ?" for key in settings.keys()])
+            values = list(settings.values()) + [settings_id]
+            cursor.execute(f'''
+                UPDATE graduation_settings SET {updates}, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', values)
+        else:
+            # Insert new
+            columns = ', '.join(settings.keys())
+            placeholders = ', '.join(['?' for _ in settings])
+            cursor.execute(f'''
+                INSERT INTO graduation_settings ({columns}) VALUES ({placeholders})
+            ''', list(settings.values()))
+
+        conn.commit()
+        conn.close()
+
+    # ============ Benchmark Settings ============
+
+    def get_benchmark_settings(self) -> Dict:
+        """Get benchmark settings"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM benchmark_settings ORDER BY id DESC LIMIT 1')
+        row = cursor.fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+    def update_benchmark_settings(self, settings: Dict):
+        """Update benchmark settings"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT id FROM benchmark_settings ORDER BY id DESC LIMIT 1')
+        row = cursor.fetchone()
+        settings_id = row['id'] if row else None
+
+        if settings_id:
+            updates = ', '.join([f"{key} = ?" for key in settings.keys()])
+            values = list(settings.values()) + [settings_id]
+            cursor.execute(f'''
+                UPDATE benchmark_settings SET {updates}, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', values)
+        else:
+            columns = ', '.join(settings.keys())
+            placeholders = ', '.join(['?' for _ in settings])
+            cursor.execute(f'''
+                INSERT INTO benchmark_settings ({columns}) VALUES ({placeholders})
+            ''', list(settings.values()))
+
+        conn.commit()
+        conn.close()
+
+    # ============ Cost Tracking Settings ============
+
+    def get_cost_tracking_settings(self) -> Dict:
+        """Get cost tracking settings"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM cost_tracking_settings ORDER BY id DESC LIMIT 1')
+        row = cursor.fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+    def update_cost_tracking_settings(self, settings: Dict):
+        """Update cost tracking settings"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT id FROM cost_tracking_settings ORDER BY id DESC LIMIT 1')
+        row = cursor.fetchone()
+        settings_id = row['id'] if row else None
+
+        if settings_id:
+            updates = ', '.join([f"{key} = ?" for key in settings.keys()])
+            values = list(settings.values()) + [settings_id]
+            cursor.execute(f'''
+                UPDATE cost_tracking_settings SET {updates}, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', values)
+        else:
+            columns = ', '.join(settings.keys())
+            placeholders = ', '.join(['?' for _ in settings])
+            cursor.execute(f'''
+                INSERT INTO cost_tracking_settings ({columns}) VALUES ({placeholders})
+            ''', list(settings.values()))
+
+        conn.commit()
+        conn.close()
+
+    # ============ AI Costs Tracking ============
+
+    def store_ai_cost(self, model_id: int, cost_type: str, cost_usd: float,
+                     tokens_used: int = None, provider: str = None, model_name: str = None):
+        """Store AI API cost"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO ai_costs (model_id, cost_type, tokens_used, cost_usd, provider, model_name)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (model_id, cost_type, tokens_used, cost_usd, provider, model_name))
+        conn.commit()
+        conn.close()
+
+    def get_ai_costs(self, model_id: int, start_date: str = None, end_date: str = None) -> List[Dict]:
+        """Get AI costs for a model"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        query = 'SELECT * FROM ai_costs WHERE model_id = ?'
+        params = [model_id]
+
+        if start_date:
+            query += ' AND timestamp >= ?'
+            params.append(start_date)
+        if end_date:
+            query += ' AND timestamp <= ?'
+            params.append(end_date)
+
+        query += ' ORDER BY timestamp DESC'
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(row) for row in rows]
+
+    def get_total_ai_costs(self, model_id: int) -> float:
+        """Get total AI costs for a model"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT COALESCE(SUM(cost_usd), 0) as total FROM ai_costs WHERE model_id = ?
+        ''', (model_id,))
+        row = cursor.fetchone()
+        conn.close()
+        return row['total']
 

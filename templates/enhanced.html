@@ -26,6 +26,10 @@
                     </div>
                 </div>
                 <div class="header-right">
+                    <button class="btn-icon" id="notificationBtn" title="Notifications">
+                        <i class="bi bi-bell"></i>
+                        <span class="notification-badge" id="notificationBadge" style="display: none;">0</span>
+                    </button>
                     <button class="btn-icon" id="refreshBtn" title="Refresh">
                         <i class="bi bi-arrow-clockwise"></i>
                     </button>
@@ -65,12 +69,39 @@
             </a>
         </nav>
 
+        <!-- Notification Panel -->
+        <div class="notification-panel" id="notificationPanel">
+            <div class="notification-panel-header">
+                <h3><i class="bi bi-bell"></i> Notifications</h3>
+                <div class="notification-panel-actions">
+                    <button class="btn-text" id="clearAllNotificationsBtn">Clear All</button>
+                    <button class="btn-icon" id="closeNotificationPanelBtn">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="notification-panel-content" id="notificationList">
+                <div class="empty-state">
+                    <i class="bi bi-bell-slash"></i>
+                    <p>No notifications yet</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notification Overlay -->
+        <div class="notification-overlay" id="notificationOverlay"></div>
+
         <!-- Page: Dashboard -->
         <div class="page active" id="dashboardPage">
             <!-- Model Selector -->
             <div class="section">
                 <div class="section-header">
                     <h2>Select Model</h2>
+                    <div class="header-actions">
+                        <button id="compareModelsBtn" class="btn-primary" style="display: none;">
+                            <i class="bi bi-bar-chart-line"></i> Compare Models
+                        </button>
+                    </div>
                 </div>
                 <div class="model-selector">
                     <select id="modelSelect" class="form-select">
@@ -82,6 +113,97 @@
                     <button id="showSingleModelBtn" class="btn-secondary" style="margin-left: 10px; display: none;">
                         <i class="bi bi-graph-up"></i> Show Single Model
                     </button>
+                </div>
+            </div>
+
+            <!-- Multi-Model Comparison Modal -->
+            <div class="modal" id="compareModelsModal" style="display: none;">
+                <div class="modal-overlay" onclick="closeCompareModelsModal()"></div>
+                <div class="modal-content large-modal">
+                    <div class="modal-header">
+                        <h3><i class="bi bi-bar-chart-line"></i> Multi-Model Comparison</h3>
+                        <button class="btn-icon" onclick="closeCompareModelsModal()">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <!-- Model Selection -->
+                        <div class="comparison-model-selection">
+                            <h4>Select Models to Compare (2-5 models)</h4>
+                            <div id="comparisonModelCheckboxes" class="model-checkbox-grid">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+
+                        <!-- Comparison Chart -->
+                        <div class="comparison-chart-section">
+                            <h4>Portfolio Value Comparison</h4>
+                            <div id="comparisonChart" style="width: 100%; height: 400px;"></div>
+                        </div>
+
+                        <!-- Comparison Table -->
+                        <div class="comparison-table-section">
+                            <h4>Performance Metrics Comparison</h4>
+                            <div class="table-container">
+                                <table class="data-table comparison-table" id="comparisonTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Model</th>
+                                            <th>Total Value</th>
+                                            <th>Total Return</th>
+                                            <th>Win Rate</th>
+                                            <th>Sharpe Ratio</th>
+                                            <th>Max Drawdown</th>
+                                            <th>Trades</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="comparisonTableBody">
+                                        <tr><td colspan="7">Select models to compare</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Market Overview Section -->
+            <div class="section">
+                <div class="section-header">
+                    <h2>🌐 Market Overview</h2>
+                    <button class="btn-icon" id="refreshMarketBtn" title="Refresh Market Data">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </div>
+                <div class="market-overview-grid">
+                    <div class="market-overview-card" id="marketSentimentCard">
+                        <div class="overview-icon">📊</div>
+                        <div class="overview-content">
+                            <div class="overview-label">Market Sentiment</div>
+                            <div class="overview-value" id="marketSentiment">--</div>
+                        </div>
+                    </div>
+                    <div class="market-overview-card" id="topGainerCard">
+                        <div class="overview-icon">📈</div>
+                        <div class="overview-content">
+                            <div class="overview-label">Top Gainer (24h)</div>
+                            <div class="overview-value positive" id="topGainer">--</div>
+                        </div>
+                    </div>
+                    <div class="market-overview-card" id="topLoserCard">
+                        <div class="overview-icon">📉</div>
+                        <div class="overview-content">
+                            <div class="overview-label">Top Loser (24h)</div>
+                            <div class="overview-value negative" id="topLoser">--</div>
+                        </div>
+                    </div>
+                    <div class="market-overview-card" id="totalVolumeCard">
+                        <div class="overview-icon">💰</div>
+                        <div class="overview-content">
+                            <div class="overview-label">Tracked Coins</div>
+                            <div class="overview-value" id="trackedCoins">6</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -131,6 +253,38 @@
                 </div>
             </div>
 
+            <!-- Model Graduation Status -->
+            <div class="section" id="graduationStatusSection" style="display: none;">
+                <div class="section-header">
+                    <h2>🎓 Model Readiness Status</h2>
+                    <button class="btn-icon" id="refreshGraduationBtn" title="Refresh Status">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </div>
+                <div class="graduation-status-card" id="graduationStatusCard">
+                    <div class="empty-state">
+                        <i class="bi bi-hourglass"></i>
+                        <p>Select a model to view readiness status</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Benchmark Comparison -->
+            <div class="section" id="benchmarkComparisonSection" style="display: none;">
+                <div class="section-header">
+                    <h2>📊 Performance vs Benchmarks</h2>
+                    <button class="btn-icon" id="refreshBenchmarkBtn" title="Refresh Benchmarks">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </div>
+                <div class="benchmark-comparison-card" id="benchmarkComparisonCard">
+                    <div class="empty-state">
+                        <i class="bi bi-graph-up"></i>
+                        <p>Calculating benchmarks...</p>
+                    </div>
+                </div>
+            </div>
+
             <!-- Portfolio Value Chart -->
             <div class="section">
                 <div class="section-header">
@@ -172,6 +326,9 @@
                         <div class="analytics-card-header">
                             <h3>📈 Performance Analytics</h3>
                             <div class="analytics-info">
+                                <button class="btn-secondary btn-small" id="exportReportBtn" style="margin-right: 8px;">
+                                    <i class="bi bi-file-earmark-text"></i> Export Report
+                                </button>
                                 <button class="btn-icon" id="refreshAnalyticsBtn" title="Refresh Analytics">
                                     <i class="bi bi-arrow-clockwise"></i>
                                 </button>
@@ -250,6 +407,70 @@
                                     <div class="perf-metric-desc">Wins / Losses ratio</div>
                                 </div>
                             </div>
+                            <div class="perf-metric-card">
+                                <div class="perf-metric-icon">🎯</div>
+                                <div class="perf-metric-content">
+                                    <div class="perf-metric-label">Win Rate</div>
+                                    <div class="perf-metric-value" id="winRate">--</div>
+                                    <div class="perf-metric-desc">Profitable trades %</div>
+                                </div>
+                            </div>
+                            <div class="perf-metric-card">
+                                <div class="perf-metric-icon">💎</div>
+                                <div class="perf-metric-content">
+                                    <div class="perf-metric-label">Total Return</div>
+                                    <div class="perf-metric-value" id="totalReturn">--</div>
+                                    <div class="perf-metric-desc">Overall profit/loss</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trade Analytics & Insights -->
+            <div class="section">
+                <div class="section-header">
+                    <h2>📊 Trade Analytics & Insights</h2>
+                </div>
+                <div class="analytics-insights-grid">
+                    <!-- Best Performing Coins -->
+                    <div class="insight-card">
+                        <div class="insight-header">
+                            <h4>🏆 Top Performers</h4>
+                        </div>
+                        <div id="topPerformersContent" class="insight-content">
+                            <div class="empty-state"><p>No data yet</p></div>
+                        </div>
+                    </div>
+
+                    <!-- Worst Performing Coins -->
+                    <div class="insight-card">
+                        <div class="insight-header">
+                            <h4>📉 Worst Performers</h4>
+                        </div>
+                        <div id="worstPerformersContent" class="insight-content">
+                            <div class="empty-state"><p>No data yet</p></div>
+                        </div>
+                    </div>
+
+                    <!-- Trading Hours Heatmap -->
+                    <div class="insight-card">
+                        <div class="insight-header">
+                            <h4>⏰ Trading Activity by Hour</h4>
+                        </div>
+                        <div id="tradingHoursContent" class="insight-content">
+                            <div class="empty-state"><p>No data yet</p></div>
+                        </div>
+                    </div>
+
+                    <!-- Trade Size Distribution -->
+                    <div class="insight-card">
+                        <div class="insight-header">
+                            <h4>💰 Average Trade Size</h4>
+                        </div>
+                        <div id="tradeSizeContent" class="insight-content">
+                            <div class="empty-state"><p>No data yet</p></div>
                         </div>
                     </div>
                 </div>
@@ -264,6 +485,11 @@
                         <div class="data-section">
                             <div class="section-header">
                                 <h3>📈 Current Positions</h3>
+                                <div class="header-actions">
+                                    <button class="btn-secondary btn-small" id="exportPositionsBtn">
+                                        <i class="bi bi-download"></i> Export
+                                    </button>
+                                </div>
                             </div>
                             <div class="table-container">
                                 <table class="data-table">
@@ -330,41 +556,77 @@
                                 <div class="risk-card-compact">
                                     <div class="risk-label">Position Size</div>
                                     <div class="risk-value" id="riskPositionSize">--</div>
+                                    <div class="risk-progress-bar">
+                                        <div class="risk-progress-fill" id="progressPositionSize"></div>
+                                    </div>
                                     <div class="risk-status status-ok" id="statusPositionSize">OK</div>
                                 </div>
                                 <div class="risk-card-compact">
                                     <div class="risk-label">Daily Loss</div>
                                     <div class="risk-value" id="riskDailyLoss">--</div>
+                                    <div class="risk-progress-bar">
+                                        <div class="risk-progress-fill" id="progressDailyLoss"></div>
+                                    </div>
                                     <div class="risk-status status-ok" id="statusDailyLoss">OK</div>
                                 </div>
                                 <div class="risk-card-compact">
                                     <div class="risk-label">Open Positions</div>
                                     <div class="risk-value" id="riskOpenPositions">--</div>
+                                    <div class="risk-progress-bar">
+                                        <div class="risk-progress-fill" id="progressOpenPositions"></div>
+                                    </div>
                                     <div class="risk-status status-ok" id="statusOpenPositions">OK</div>
                                 </div>
                                 <div class="risk-card-compact">
                                     <div class="risk-label">Cash Reserve</div>
                                     <div class="risk-value" id="riskCashReserve">--</div>
+                                    <div class="risk-progress-bar">
+                                        <div class="risk-progress-fill" id="progressCashReserve"></div>
+                                    </div>
                                     <div class="risk-status status-ok" id="statusCashReserve">OK</div>
                                 </div>
                                 <div class="risk-card-compact">
                                     <div class="risk-label">Daily Trades</div>
                                     <div class="risk-value" id="riskDailyTrades">--</div>
+                                    <div class="risk-progress-bar">
+                                        <div class="risk-progress-fill" id="progressDailyTrades"></div>
+                                    </div>
                                     <div class="risk-status status-ok" id="statusDailyTrades">OK</div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Pending Decisions (keep existing) -->
+                        <!-- Decision History (Enhanced with tabs) -->
                         <div class="data-section">
                             <div class="section-header">
-                                <h3>Pending Decisions</h3>
+                                <h3>🤖 Decision History</h3>
                                 <span class="badge" id="pendingCount">0</span>
                             </div>
-                            <div id="pendingDecisionsContainer">
+
+                            <!-- Decision Tabs -->
+                            <div class="decision-tabs">
+                                <button class="decision-tab active" data-status="pending">
+                                    <i class="bi bi-clock-history"></i> Pending
+                                </button>
+                                <button class="decision-tab" data-status="approved">
+                                    <i class="bi bi-check-circle"></i> Approved
+                                </button>
+                                <button class="decision-tab" data-status="rejected">
+                                    <i class="bi bi-x-circle"></i> Rejected
+                                </button>
+                                <button class="decision-tab" data-status="expired">
+                                    <i class="bi bi-stopwatch"></i> Expired
+                                </button>
+                                <button class="decision-tab" data-status="all">
+                                    <i class="bi bi-list"></i> All
+                                </button>
+                            </div>
+
+                            <!-- Decision Container -->
+                            <div id="pendingDecisionsContainer" class="decisions-container">
                                 <div class="empty-state">
                                     <i class="bi bi-inbox"></i>
-                                    <p>No pending decisions</p>
+                                    <p>No decisions yet</p>
                                 </div>
                             </div>
                         </div>
@@ -400,6 +662,38 @@
                                 <div class="empty-state">
                                     <i class="bi bi-chat-dots"></i>
                                     <p>No conversations yet</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- AI Model Settings Widget -->
+                        <div class="data-section">
+                            <div class="section-header">
+                                <h3>⚙️ Model Settings</h3>
+                                <button class="btn-icon" id="editModelSettingsBtn" title="Edit Settings">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                            </div>
+                            <div id="modelSettingsWidget" class="model-settings-widget">
+                                <div class="empty-state">
+                                    <i class="bi bi-gear"></i>
+                                    <p>Select a model to view settings</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Live Activity Feed -->
+                        <div class="data-section">
+                            <div class="section-header">
+                                <h3>📊 Live Activity</h3>
+                                <button class="btn-icon" id="clearActivityBtn" title="Clear Activity">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                            <div id="activityFeedContainer" class="activity-feed-container">
+                                <div class="empty-state">
+                                    <i class="bi bi-activity"></i>
+                                    <p>No recent activity</p>
                                 </div>
                             </div>
                         </div>
@@ -899,6 +1193,106 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Model Graduation & Testing Configuration -->
+            <div class="section">
+                <div class="section-header">
+                    <h2>🎓 Model Graduation & Testing</h2>
+                    <span class="help-icon" title="Configure criteria for determining when a model is ready for live trading">
+                        <i class="bi bi-question-circle"></i>
+                    </span>
+                </div>
+
+                <!-- Strategy Preset Selector -->
+                <div class="form-group">
+                    <label>Testing Strategy</label>
+                    <select id="strategyPreset" class="form-select">
+                        <option value="quick_test">Quick Test (Small $, Fast, 80% confidence)</option>
+                        <option value="standard">Standard (Medium $, Balanced, 95% confidence)</option>
+                        <option value="conservative">Conservative (Large $, Slow, 99% confidence)</option>
+                        <option value="custom">Custom (Define your own criteria)</option>
+                    </select>
+                    <small class="form-help">
+                        Choose a preset based on how much capital you plan to deploy.
+                        Quick Test is suitable for $100-500, Standard for $1k-5k, Conservative for $10k+.
+                    </small>
+                </div>
+
+                <!-- Statistical Confidence Section -->
+                <div class="settings-subsection">
+                    <h3>📊 Statistical Confidence</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Minimum Trades Required</label>
+                            <input type="number" id="minTrades" class="form-input" min="5" max="200" value="20">
+                            <small class="form-help">Number of trades needed for statistical significance</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Confidence Level</label>
+                            <select id="confidenceLevel" class="form-select">
+                                <option value="70">70% (Low confidence)</option>
+                                <option value="80" selected>80% (Quick test)</option>
+                                <option value="90">90% (Good confidence)</option>
+                                <option value="95">95% (Standard)</option>
+                                <option value="99">99% (High confidence)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Minimum Testing Days</label>
+                            <input type="number" id="minTestingDays" class="form-input" min="1" max="180" value="14">
+                            <small class="form-help">Ensure model is tested across different market conditions</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Performance Criteria Section -->
+                <div class="settings-subsection">
+                    <h3>📈 Performance Criteria</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="enableWinRate" checked>
+                                Minimum Win Rate (%)
+                            </label>
+                            <input type="number" id="minWinRate" class="form-input" min="0" max="100" step="1" value="50">
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="enableSharpe" checked>
+                                Minimum Sharpe Ratio
+                            </label>
+                            <input type="number" id="minSharpeRatio" class="form-input" min="0" max="5" step="0.1" value="0.8">
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="enableDrawdown" checked>
+                                Maximum Drawdown (%)
+                            </label>
+                            <input type="number" id="maxDrawdownPct" class="form-input" min="1" max="50" step="1" value="25">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Save Button -->
+                <div class="form-actions">
+                    <button class="btn-primary" id="saveGraduationSettings">
+                        <i class="bi bi-save"></i>
+                        Save Graduation Settings
+                    </button>
+                    <button class="btn-secondary" id="resetGraduationSettings">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                        Reset to Preset Defaults
+                    </button>
+                </div>
+
+                <div class="info-box" style="margin-top: 20px;">
+                    <i class="bi bi-info-circle"></i>
+                    <div>
+                        <strong>Note:</strong> These settings determine when the system will mark a model as "ready" for live trading.
+                        They are advisory only - you maintain full control over when to go live.
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Page: Readiness -->
@@ -1213,6 +1607,17 @@
         </div>
     </div>
 
+    <script src="/static/notifications.js"></script>
+    <script src="/static/exports.js"></script>
+    <script src="/static/decision-history.js"></script>
+    <script src="/static/activity-feed.js"></script>
+    <script src="/static/trade-analytics.js"></script>
+    <script src="/static/model-comparison.js"></script>
+    <script src="/static/model-settings-widget.js"></script>
+    <script src="/static/market-overview.js"></script>
+    <script src="/static/graduation-settings.js"></script>
+    <script src="/static/graduation-status.js"></script>
+    <script src="/static/benchmark-comparison.js"></script>
     <script src="/static/enhanced.js"></script>
     <script src="/static/risk_profiles.js"></script>
 </body>

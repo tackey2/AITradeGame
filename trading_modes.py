@@ -688,7 +688,7 @@ class TradingExecutor:
 
         # Get current market data
         from market_data import MarketDataFetcher
-        market_fetcher = MarketDataFetcher()
+        market_fetcher = MarketDataFetcher(db=self.db)
         market_data = market_fetcher.get_current_prices([coin])
 
         # Execute using appropriate environment executor

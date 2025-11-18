@@ -198,8 +198,13 @@ function startAutoRefresh() {
         if (currentModelId) {
             const activePage = document.querySelector('.page.active');
             if (activePage && activePage.id === 'dashboardPage') {
+                // Refresh all dashboard data like classic view
                 loadPendingDecisions();
                 loadRiskStatus();
+                loadPortfolioChartData(currentTimeRange); // Match classic view's 10-second refresh
+                loadPortfolioMetrics();
+                loadPositionsTable();
+                loadAssetAllocation();
             }
         }
     }, 10000); // Every 10 seconds
@@ -475,7 +480,11 @@ async function loadDashboardData() {
             updateMarketTicker().catch(e => console.error('Market ticker:', e)),
             loadAIConversations().catch(e => console.error('AI conversations:', e)),
             loadAssetAllocation().catch(e => console.error('Asset allocation:', e)),
-            loadPerformanceAnalytics().catch(e => console.error('Performance analytics:', e))
+            loadPerformanceAnalytics().catch(e => console.error('Performance analytics:', e)),
+            (typeof loadTradeAnalytics === 'function' ? loadTradeAnalytics() : Promise.resolve()).catch(e => console.error('Trade analytics:', e)),
+            (typeof loadModelSettingsWidget === 'function' ? loadModelSettingsWidget() : Promise.resolve()).catch(e => console.error('Model settings:', e)),
+            (typeof loadGraduationStatus === 'function' ? loadGraduationStatus(currentModelId) : Promise.resolve()).catch(e => console.error('Graduation status:', e)),
+            (typeof loadBenchmarkComparison === 'function' ? loadBenchmarkComparison(currentModelId) : Promise.resolve()).catch(e => console.error('Benchmark comparison:', e))
         ]);
     } catch (error) {
         console.error('Failed to load dashboard data:', error);
@@ -639,17 +648,29 @@ async function loadRiskStatus() {
 function updateRiskCard(name, data) {
     const valueEl = document.getElementById(`risk${name}`);
     const statusEl = document.getElementById(`status${name}`);
+    const progressEl = document.getElementById(`progress${name}`);
 
     if (!valueEl || !statusEl || !data) return;
 
-    // Format value based on type
+    // Format value based on type and calculate percentage for progress bar
     let value = '';
+    let percentage = 0;
+
     if (data.usage_pct !== undefined) {
         value = `${data.usage_pct.toFixed(1)}%`;
+        percentage = data.usage_pct;
     } else if (data.current_pct !== undefined) {
         value = `${data.current_pct.toFixed(1)}%`;
+        percentage = data.current_pct;
     } else if (data.current !== undefined) {
         value = data.current.toString();
+        // For count-based metrics, calculate percentage if limit available
+        if (data.limit && data.limit > 0) {
+            percentage = (data.current / data.limit) * 100;
+        } else {
+            // Default visualization for counts without limits
+            percentage = Math.min((data.current / 10) * 100, 100);
+        }
     }
 
     valueEl.textContent = value;
@@ -658,6 +679,32 @@ function updateRiskCard(name, data) {
     statusEl.textContent = data.status.toUpperCase();
     statusEl.className = 'risk-status';
     statusEl.classList.add(`status-${data.status}`);
+
+    // Update progress bar if element exists
+    if (progressEl) {
+        // Clamp percentage between 0 and 100
+        percentage = Math.max(0, Math.min(100, percentage));
+
+        // Set width
+        progressEl.style.width = `${percentage}%`;
+
+        // Set color based on status
+        let color;
+        if (data.status === 'ok') {
+            color = '#4caf50'; // Green
+        } else if (data.status === 'warning') {
+            color = '#ff9800'; // Orange
+        } else if (data.status === 'danger') {
+            color = '#f44336'; // Red
+        } else {
+            color = '#2196f3'; // Blue (default)
+        }
+
+        progressEl.style.backgroundColor = color;
+
+        // Add animation
+        progressEl.style.transition = 'width 0.5s ease, background-color 0.3s ease';
+    }
 }
 
 // Pending Decisions
@@ -678,6 +725,10 @@ async function loadPendingDecisions() {
                     <p>No pending decisions</p>
                 </div>
             `;
+            // Monitor for notifications
+            if (typeof monitorPendingDecisions === 'function') {
+                monitorPendingDecisions(decisions);
+            }
             return;
         }
 
@@ -690,6 +741,11 @@ async function loadPendingDecisions() {
                 showDecisionDetail(decisionId);
             });
         });
+
+        // Monitor pending decisions for notifications
+        if (typeof monitorPendingDecisions === 'function') {
+            monitorPendingDecisions(decisions);
+        }
     } catch (error) {
         console.error('Failed to load pending decisions:', error);
     }
@@ -2046,7 +2102,11 @@ async function loadPortfolioChartData(range) {
 
     try {
         // Use simple portfolio endpoint which includes account_value_history
-        const response = await fetch(`/api/models/${currentModelId}/portfolio`);
+        // Pass the range parameter to filter data by time
+        const url = range && range !== 'all'
+            ? `/api/models/${currentModelId}/portfolio?range=${range}`
+            : `/api/models/${currentModelId}/portfolio`;
+        const response = await fetch(url);
         if (!response.ok) {
             console.warn('Portfolio endpoint failed');
             return;
@@ -2114,6 +2174,7 @@ async function loadPortfolioChartData(range) {
             },
             yAxis: {
                 type: 'value',
+                scale: true,  // Dynamic scaling to show value changes more clearly
                 axisLine: { lineStyle: { color: '#3c4556' } },
                 axisLabel: {
                     color: '#9aa0a6',
@@ -2897,6 +2958,24 @@ async function loadPerformanceAnalytics() {
             profitFactorEl.className = 'perf-metric-value';
             if (data.profit_factor > 1) profitFactorEl.classList.add('positive');
             else if (data.profit_factor < 1) profitFactorEl.classList.add('negative');
+        }
+
+        // Update Win Rate
+        const winRateEl = document.getElementById('winRate');
+        if (winRateEl) {
+            winRateEl.textContent = `${data.win_rate.toFixed(1)}%`;
+            winRateEl.className = 'perf-metric-value';
+            if (data.win_rate >= 50) winRateEl.classList.add('positive');
+            else winRateEl.classList.add('negative');
+        }
+
+        // Update Total Return
+        const totalReturnEl = document.getElementById('totalReturn');
+        if (totalReturnEl) {
+            totalReturnEl.textContent = `$${data.total_return.toFixed(2)} (${data.total_return_pct >= 0 ? '+' : ''}${data.total_return_pct.toFixed(2)}%)`;
+            totalReturnEl.className = 'perf-metric-value';
+            if (data.total_return > 0) totalReturnEl.classList.add('positive');
+            else if (data.total_return < 0) totalReturnEl.classList.add('negative');
         }
 
     } catch (error) {
