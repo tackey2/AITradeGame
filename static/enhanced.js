@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Core initialization
     initializeApp();
     setupEventListeners();
+    setupGlobalModalHandlers();  // Add universal modal close functionality
 
     // Exchange credentials (from second listener)
     const modelSelect = document.getElementById('modelSelect');
@@ -151,6 +152,41 @@ function setupEventListeners() {
     document.getElementById('approveDecisionBtn').addEventListener('click', () => approveDecision());
     document.getElementById('rejectDecisionBtn').addEventListener('click', () => rejectDecision());
     document.getElementById('modifyDecisionBtn').addEventListener('click', () => modifyDecision());
+}
+
+// Global Modal Handlers - ESC key and overlay click to close
+function setupGlobalModalHandlers() {
+    // ESC key closes all modals
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            // Close all active modals
+            document.querySelectorAll('.modal.active').forEach(modal => {
+                modal.classList.remove('active');
+
+                // Reset forms if they exist
+                const form = modal.querySelector('form');
+                if (form) {
+                    form.reset();
+                }
+            });
+        }
+    });
+
+    // Click on modal overlay closes modal
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.addEventListener('click', (e) => {
+            // Only close if clicking the overlay itself, not the modal content
+            if (e.target === modal) {
+                modal.classList.remove('active');
+
+                // Reset forms if they exist
+                const form = modal.querySelector('form');
+                if (form) {
+                    form.reset();
+                }
+            }
+        });
+    });
 }
 
 // Page Navigation
@@ -2562,8 +2598,10 @@ function renderModelsGrid(models) {
             <div class="empty-state">
                 <i class="bi bi-cpu"></i>
                 <p>No models ${modelsFilter !== 'all' ? `(${modelsFilter})` : 'created yet'}</p>
-                <button class="btn-primary" onclick="switchPage('settings'); setTimeout(() => document.getElementById('addModelBtn').click(), 100)">
-                    Create Your First Model
+                <p class="empty-state-subtitle">Get started by setting up an AI provider and creating your first trading model</p>
+                <button class="btn-primary" onclick="switchPage('settings')">
+                    <i class="bi bi-gear"></i>
+                    Go to Settings
                 </button>
             </div>
         `;

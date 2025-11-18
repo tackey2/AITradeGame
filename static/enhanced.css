@@ -551,6 +551,14 @@ body {
     font-size: 14px;
 }
 
+.empty-state-subtitle {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 8px;
+    margin-bottom: 20px;
+    opacity: 0.8;
+}
+
 /* Readiness */
 .readiness-container {
     display: grid;
