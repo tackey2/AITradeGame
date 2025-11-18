@@ -7,10 +7,11 @@ from typing import Dict, List
 
 class MarketDataFetcher:
     """Fetch real-time market data from Binance API"""
-    
-    def __init__(self):
+
+    def __init__(self, db=None):
         self.binance_base_url = "https://api.binance.com/api/v3"
         self.coingecko_base_url = "https://api.coingecko.com/api/v3"
+        self.db = db  # Database instance for storing price snapshots
         
         # Binance symbol mapping
         self.binance_symbols = {
@@ -77,7 +78,15 @@ class MarketDataFetcher:
             # Update cache
             self._cache[cache_key] = prices
             self._cache_time[cache_key] = time.time()
-            
+
+            # Store price snapshots for benchmark calculations
+            if self.db:
+                try:
+                    for coin, data in prices.items():
+                        self.db.store_price_snapshot(coin, data['price'])
+                except Exception as e:
+                    print(f"[WARNING] Failed to store price snapshot: {e}")
+
             return prices
             
         except Exception as e:

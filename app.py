@@ -32,8 +32,8 @@ enhanced_db.init_db()
 # Initialize system risk profiles
 enhanced_db.init_system_risk_profiles()
 
-# Market data fetcher
-market_fetcher = MarketDataFetcher()
+# Market data fetcher (pass db for price snapshot storage)
+market_fetcher = MarketDataFetcher(db=db)
 
 # Trading engines (original system)
 trading_engines = {}
@@ -2208,6 +2208,233 @@ def init_trading_engines():
 
     except Exception as e:
         print(f"[ERROR] Init engines failed: {e}\n")
+
+# ============ Graduation & Benchmark Settings API ============
+
+@app.route('/api/graduation-settings', methods=['GET'])
+def get_graduation_settings_api():
+    """Get graduation criteria settings"""
+    try:
+        settings = db.get_graduation_settings()
+        return jsonify(settings if settings else {})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/graduation-settings', methods=['POST'])
+def update_graduation_settings_api():
+    """Update graduation criteria settings"""
+    try:
+        settings = request.json
+        db.update_graduation_settings(settings)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/benchmark-settings', methods=['GET'])
+def get_benchmark_settings_api():
+    """Get benchmark settings"""
+    try:
+        settings = db.get_benchmark_settings()
+        return jsonify(settings if settings else {})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/benchmark-settings', methods=['POST'])
+def update_benchmark_settings_api():
+    """Update benchmark settings"""
+    try:
+        settings = request.json
+        db.update_benchmark_settings(settings)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/cost-tracking-settings', methods=['GET'])
+def get_cost_tracking_settings_api():
+    """Get cost tracking settings"""
+    try:
+        settings = db.get_cost_tracking_settings()
+        return jsonify(settings if settings else {})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/cost-tracking-settings', methods=['POST'])
+def update_cost_tracking_settings_api():
+    """Update cost tracking settings"""
+    try:
+        settings = request.json
+        db.update_cost_tracking_settings(settings)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# ============ Model Graduation Status API ============
+
+@app.route('/api/models/<int:model_id>/graduation-status', methods=['GET'])
+def get_model_graduation_status(model_id):
+    """Get model graduation status against criteria"""
+    try:
+        from datetime import datetime, timedelta
+        import math
+
+        # Get graduation settings
+        settings = db.get_graduation_settings()
+        if not settings:
+            return jsonify({'error': 'Graduation settings not configured'}), 400
+
+        # Get model info
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM models WHERE id = ?', (model_id,))
+        model = cursor.fetchone()
+        if not model:
+            conn.close()
+            return jsonify({'error': 'Model not found'}), 404
+
+        # Get trades count and first trade date
+        cursor.execute('''
+            SELECT COUNT(*) as count, MIN(timestamp) as first_trade
+            FROM trades WHERE model_id = ?
+        ''', (model_id,))
+        trade_info = cursor.fetchone()
+        total_trades = trade_info['count']
+        first_trade_date = trade_info['first_trade']
+
+        # Calculate testing days
+        testing_days = 0
+        if first_trade_date:
+            first_date = datetime.fromisoformat(first_trade_date)
+            testing_days = (datetime.now() - first_date).days
+
+        # Get win rate
+        cursor.execute('''
+            SELECT
+                COUNT(CASE WHEN pnl > 0 THEN 1 END) as wins,
+                COUNT(*) as total
+            FROM trades WHERE model_id = ?
+        ''', (model_id,))
+        win_data = cursor.fetchone()
+        win_rate = (win_data['wins'] / win_data['total'] * 100) if win_data['total'] > 0 else 0
+
+        # Calculate Sharpe ratio (simplified - using trade returns)
+        cursor.execute('''
+            SELECT pnl FROM trades WHERE model_id = ? ORDER BY timestamp
+        ''', (model_id,))
+        trades = cursor.fetchall()
+
+        sharpe_ratio = 0
+        if len(trades) > 1:
+            returns = [t['pnl'] for t in trades]
+            avg_return = sum(returns) / len(returns)
+            std_return = math.sqrt(sum([(r - avg_return)**2 for r in returns]) / len(returns))
+            sharpe_ratio = (avg_return / std_return) if std_return > 0 else 0
+
+        # Calculate max drawdown
+        cursor.execute('''
+            SELECT total_value, timestamp FROM account_values
+            WHERE model_id = ? ORDER BY timestamp
+        ''', (model_id,))
+        account_values = cursor.fetchall()
+
+        max_drawdown = 0
+        if len(account_values) > 0:
+            peak = account_values[0]['total_value']
+            for av in account_values:
+                if av['total_value'] > peak:
+                    peak = av['total_value']
+                drawdown = ((peak - av['total_value']) / peak * 100) if peak > 0 else 0
+                if drawdown > max_drawdown:
+                    max_drawdown = drawdown
+
+        conn.close()
+
+        # Calculate statistical confidence
+        # Using simplified formula: confidence increases with sample size
+        confidence_level = min(99, int(total_trades / settings['min_trades'] * settings['confidence_level']))
+
+        # Build criteria results
+        criteria = []
+        passed_count = 0
+
+        # Trades criterion
+        trades_met = total_trades >= settings['min_trades']
+        if trades_met:
+            passed_count += 1
+        criteria.append({
+            'name': 'Minimum Trades',
+            'required': settings['min_trades'],
+            'actual': total_trades,
+            'met': trades_met,
+            'display': f"{total_trades}/{settings['min_trades']} trades"
+        })
+
+        # Days criterion
+        days_met = testing_days >= settings['min_testing_days']
+        if days_met:
+            passed_count += 1
+        criteria.append({
+            'name': 'Testing Duration',
+            'required': settings['min_testing_days'],
+            'actual': testing_days,
+            'met': days_met,
+            'display': f"{testing_days}/{settings['min_testing_days']} days"
+        })
+
+        # Win rate criterion
+        if settings['min_win_rate'] is not None:
+            win_rate_met = win_rate >= settings['min_win_rate']
+            if win_rate_met:
+                passed_count += 1
+            criteria.append({
+                'name': 'Win Rate',
+                'required': settings['min_win_rate'],
+                'actual': round(win_rate, 1),
+                'met': win_rate_met,
+                'display': f"{round(win_rate, 1)}% ≥ {settings['min_win_rate']}%"
+            })
+
+        # Sharpe ratio criterion
+        if settings['min_sharpe_ratio'] is not None:
+            sharpe_met = sharpe_ratio >= settings['min_sharpe_ratio']
+            if sharpe_met:
+                passed_count += 1
+            criteria.append({
+                'name': 'Sharpe Ratio',
+                'required': settings['min_sharpe_ratio'],
+                'actual': round(sharpe_ratio, 2),
+                'met': sharpe_met,
+                'display': f"{round(sharpe_ratio, 2)} ≥ {settings['min_sharpe_ratio']}"
+            })
+
+        # Max drawdown criterion
+        if settings['max_drawdown_pct'] is not None:
+            drawdown_met = max_drawdown <= settings['max_drawdown_pct']
+            if drawdown_met:
+                passed_count += 1
+            criteria.append({
+                'name': 'Max Drawdown',
+                'required': settings['max_drawdown_pct'],
+                'actual': round(max_drawdown, 1),
+                'met': drawdown_met,
+                'display': f"{round(max_drawdown, 1)}% ≤ {settings['max_drawdown_pct']}%"
+            })
+
+        total_criteria = len(criteria)
+        readiness_pct = int((passed_count / total_criteria * 100)) if total_criteria > 0 else 0
+
+        return jsonify({
+            'model_id': model_id,
+            'strategy_preset': settings['strategy_preset'],
+            'confidence_level': confidence_level,
+            'criteria': criteria,
+            'passed_count': passed_count,
+            'total_criteria': total_criteria,
+            'readiness_percentage': readiness_pct,
+            'is_ready': passed_count == total_criteria
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     import webbrowser
