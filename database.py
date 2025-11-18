@@ -131,9 +131,14 @@ class Database:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 coin TEXT NOT NULL,
                 price REAL NOT NULL,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_coin_timestamp (coin, timestamp)
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
+        ''')
+
+        # Create index for price snapshots
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_coin_timestamp
+            ON price_snapshots (coin, timestamp)
         ''')
 
         # Graduation settings table
