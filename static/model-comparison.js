@@ -22,7 +22,8 @@ async function openCompareModelsModal() {
     // Load available models
     await loadAvailableModelsForComparison();
 
-    modal.style.display = 'flex';
+    // Use class-based toggling instead of inline styles
+    modal.classList.add('active');
 
     // Initialize chart if not already done
     if (!comparisonChart) {
@@ -37,7 +38,8 @@ async function openCompareModelsModal() {
 function closeCompareModelsModal() {
     const modal = document.getElementById('compareModelsModal');
     if (modal) {
-        modal.style.display = 'none';
+        // Use class-based toggling instead of inline styles
+        modal.classList.remove('active');
     }
 }
 

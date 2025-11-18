@@ -3567,17 +3567,21 @@ input:checked + .toggle-slider:before {
    MULTI-MODEL COMPARISON MODAL
    ============================================ */
 
-.modal {
+#compareModelsModal {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
     z-index: 2000;
-    display: flex;
+    display: none; /* Hidden by default, shown when needed */
     align-items: center;
     justify-content: center;
     padding: 20px;
+}
+
+#compareModelsModal.active {
+    display: flex; /* Show when active */
 }
 
 .modal-overlay {
