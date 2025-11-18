@@ -1,18 +1,22 @@
 """
 AI Explainability Module
 Generates human-readable explanations for AI trading decisions
+With chain-of-thought tracking and AI-as-judge reasoning evaluation
 """
-from typing import Dict
+from typing import Dict, Optional
+import json
 
 
 class AIExplainer:
-    """Generate explanations for AI decisions"""
+    """Generate explanations for AI decisions with reasoning evaluation"""
 
-    def __init__(self, explanation_level: str = 'intermediate'):
+    def __init__(self, ai_trader=None, explanation_level: str = 'intermediate'):
         """
         Args:
+            ai_trader: AITrader instance for AI-powered evaluation (optional)
             explanation_level: Level of detail (beginner, intermediate, advanced)
         """
+        self.ai_trader = ai_trader
         self.explanation_level = explanation_level
 
     def create_explanation(self, coin: str, decision: Dict,
@@ -175,3 +179,205 @@ class AIExplainer:
         if reference == 0:
             return 0
         return ((price - reference) / reference) * 100
+
+    def evaluate_reasoning(self, decision: Dict, cot_trace: str, market_data: Dict) -> Dict:
+        """
+        Use AI to evaluate the quality of reasoning in a trading decision
+
+        Args:
+            decision: The trading decision dict
+            cot_trace: Chain of thought reasoning trace
+            market_data: Market data context
+
+        Returns:
+            Dict with reasoning quality scores and feedback
+        """
+        # If no AI trader available, fall back to rule-based scoring
+        if not self.ai_trader or not cot_trace:
+            return self._rule_based_scoring(decision, cot_trace, market_data)
+
+        try:
+            # Prepare evaluation prompt for AI
+            eval_prompt = self._create_evaluation_prompt(decision, cot_trace, market_data)
+
+            # Call AI to evaluate reasoning
+            response = self.ai_trader._call_llm(eval_prompt, 'reasoning_evaluation')
+
+            # Parse AI evaluation response
+            evaluation = self._parse_evaluation_response(response)
+
+            return evaluation
+
+        except Exception as e:
+            print(f"AI evaluation failed, using rule-based: {e}")
+            return self._rule_based_scoring(decision, cot_trace, market_data)
+
+    def _create_evaluation_prompt(self, decision: Dict, cot_trace: str, market_data: Dict) -> str:
+        """Create prompt for AI to evaluate reasoning quality"""
+
+        signal = decision.get('signal', 'unknown')
+        coin = decision.get('coin', 'unknown')
+        price = market_data.get('price', 0)
+
+        prompt = f"""You are an expert trading analyst evaluating the quality of AI trading reasoning.
+
+TRADING DECISION:
+- Coin: {coin}
+- Signal: {signal}
+- Price: ${price:,.2f}
+- Confidence: {decision.get('confidence', 0)}
+
+MARKET CONTEXT:
+- 24h Change: {market_data.get('change_24h', 0):.2f}%
+- RSI: {market_data.get('indicators', {}).get('rsi_14', 'N/A')}
+- Volume: {market_data.get('volume_24h', 'N/A')}
+
+REASONING PROVIDED:
+{cot_trace}
+
+EVALUATION TASK:
+Evaluate this trading reasoning on a scale of 1-5 for each dimension:
+
+1. **Logical Consistency** (1-5): Does the reasoning flow logically? Are there contradictions?
+2. **Evidence Usage** (1-5): Does it reference market data and indicators properly?
+3. **Risk Awareness** (1-5): Does it consider potential downsides and risks?
+4. **Clarity** (1-5): Is the explanation clear and understandable?
+
+Provide your evaluation in this EXACT JSON format:
+{{
+    "logical_consistency": <score 1-5>,
+    "evidence_usage": <score 1-5>,
+    "risk_awareness": <score 1-5>,
+    "clarity": <score 1-5>,
+    "overall_score": <average score>,
+    "feedback": "<brief 1-2 sentence evaluation>",
+    "strengths": "<what was done well>",
+    "weaknesses": "<what could be improved>"
+}}
+
+IMPORTANT: Return ONLY the JSON, no other text."""
+
+        return prompt
+
+    def _parse_evaluation_response(self, response: str) -> Dict:
+        """Parse AI evaluation response into structured format"""
+        try:
+            # Try to extract JSON from response
+            response_text = response
+            if hasattr(response, 'choices'):
+                response_text = response.choices[0].message.content
+
+            # Clean up response - remove markdown code blocks if present
+            response_text = response_text.strip()
+            if response_text.startswith('```'):
+                lines = response_text.split('\n')
+                response_text = '\n'.join(lines[1:-1])
+
+            # Parse JSON
+            evaluation = json.loads(response_text)
+
+            # Validate scores are in range
+            for key in ['logical_consistency', 'evidence_usage', 'risk_awareness', 'clarity']:
+                score = evaluation.get(key, 3)
+                evaluation[key] = max(1, min(5, score))
+
+            # Calculate overall score if not provided
+            if 'overall_score' not in evaluation:
+                scores = [
+                    evaluation.get('logical_consistency', 3),
+                    evaluation.get('evidence_usage', 3),
+                    evaluation.get('risk_awareness', 3),
+                    evaluation.get('clarity', 3)
+                ]
+                evaluation['overall_score'] = sum(scores) / len(scores)
+
+            return evaluation
+
+        except Exception as e:
+            print(f"Failed to parse AI evaluation: {e}")
+            # Return default neutral evaluation
+            return {
+                'logical_consistency': 3,
+                'evidence_usage': 3,
+                'risk_awareness': 3,
+                'clarity': 3,
+                'overall_score': 3.0,
+                'feedback': 'Could not evaluate reasoning automatically.',
+                'strengths': 'N/A',
+                'weaknesses': 'N/A'
+            }
+
+    def _rule_based_scoring(self, decision: Dict, cot_trace: str, market_data: Dict) -> Dict:
+        """
+        Fallback rule-based scoring when AI evaluation is not available
+        Simple heuristics based on reasoning length and keyword presence
+        """
+        if not cot_trace:
+            return {
+                'logical_consistency': 1,
+                'evidence_usage': 1,
+                'risk_awareness': 1,
+                'clarity': 1,
+                'overall_score': 1.0,
+                'feedback': 'No reasoning provided.',
+                'strengths': 'N/A',
+                'weaknesses': 'No chain of thought trace available'
+            }
+
+        cot_lower = cot_trace.lower()
+        cot_length = len(cot_trace)
+
+        # Logical consistency - based on length and structure
+        logical_score = 3
+        if cot_length > 500:
+            logical_score += 1
+        if any(word in cot_lower for word in ['because', 'therefore', 'thus', 'since']):
+            logical_score += 1
+        logical_score = min(5, logical_score)
+
+        # Evidence usage - check for data references
+        evidence_score = 2
+        evidence_keywords = ['price', 'rsi', 'volume', 'trend', 'indicator', 'moving average', 'support', 'resistance']
+        evidence_count = sum(1 for keyword in evidence_keywords if keyword in cot_lower)
+        evidence_score = min(5, 2 + evidence_count // 2)
+
+        # Risk awareness - check for risk mentions
+        risk_score = 2
+        risk_keywords = ['risk', 'loss', 'stop', 'downside', 'volatility', 'drawdown']
+        risk_count = sum(1 for keyword in risk_keywords if keyword in cot_lower)
+        risk_score = min(5, 2 + risk_count)
+
+        # Clarity - based on length and readability
+        clarity_score = 3
+        if 200 < cot_length < 1000:  # Not too short, not too long
+            clarity_score += 1
+        if cot_lower.count('.') > 2:  # Multiple sentences
+            clarity_score += 1
+        clarity_score = min(5, clarity_score)
+
+        overall_score = (logical_score + evidence_score + risk_score + clarity_score) / 4
+
+        # Generate feedback
+        feedback_parts = []
+        if overall_score >= 4:
+            feedback_parts.append("Strong reasoning quality.")
+        elif overall_score >= 3:
+            feedback_parts.append("Adequate reasoning provided.")
+        else:
+            feedback_parts.append("Reasoning could be improved.")
+
+        if evidence_score < 3:
+            feedback_parts.append("Lacks market data references.")
+        if risk_score < 3:
+            feedback_parts.append("Risk assessment needed.")
+
+        return {
+            'logical_consistency': logical_score,
+            'evidence_usage': evidence_score,
+            'risk_awareness': risk_score,
+            'clarity': clarity_score,
+            'overall_score': round(overall_score, 2),
+            'feedback': ' '.join(feedback_parts),
+            'strengths': 'Rule-based evaluation',
+            'weaknesses': 'Consider adding more detail and market analysis'
+        }

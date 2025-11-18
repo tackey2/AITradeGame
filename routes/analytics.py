@@ -979,6 +979,75 @@ def get_aggregated_portfolio():
     })
 
 
+@models_analytics_bp.route('/<int:model_id>/reasoning-quality', methods=['GET'])
+def get_reasoning_quality(model_id):
+    """
+    Get reasoning quality statistics for a model
+
+    Returns aggregate scores, trends, and low-quality decisions
+    """
+    try:
+        # Get query parameters
+        days = request.args.get('days', 30, type=int)
+
+        # Get reasoning quality stats from database
+        stats = enhanced_db.get_reasoning_quality_stats(model_id, days=days)
+
+        # Add model name
+        model = enhanced_db.get_model(model_id)
+        stats['model_name'] = model.get('name', 'Unknown') if model else 'Unknown'
+
+        # Get recent evaluations
+        recent_evaluations = enhanced_db.get_reasoning_evaluations(model_id, limit=10)
+
+        # Format response
+        response = {
+            'model_id': model_id,
+            'model_name': stats['model_name'],
+            'time_period_days': days,
+            'statistics': stats,
+            'recent_evaluations': recent_evaluations,
+            'quality_status': _determine_quality_status(stats['average_scores']['overall'])
+        }
+
+        return jsonify(response)
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+def _determine_quality_status(overall_score):
+    """Determine quality status based on overall score"""
+    if overall_score >= 4.0:
+        return {
+            'status': 'excellent',
+            'label': 'Excellent',
+            'color': '#28a745',
+            'icon': '🟢'
+        }
+    elif overall_score >= 3.5:
+        return {
+            'status': 'good',
+            'label': 'Good',
+            'color': '#ffc107',
+            'icon': '🟡'
+        }
+    elif overall_score >= 3.0:
+        return {
+            'status': 'fair',
+            'label': 'Fair',
+            'color': '#fd7e14',
+            'icon': '🟠'
+        }
+    else:
+        return {
+            'status': 'poor',
+            'label': 'Needs Improvement',
+            'color': '#dc3545',
+            'icon': '🔴'
+        }
+
+
 # ============ Market Data Routes ============
 
 @market_bp.route('/prices', methods=['GET'])

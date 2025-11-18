@@ -18,18 +18,33 @@ class AITrader:
             'default': {'input': 2.0, 'output': 2.0}  # Default fallback pricing
         }
     
-    def make_decision(self, market_state: Dict, portfolio: Dict, 
-                     account_info: Dict) -> Dict:
-        prompt = self._build_prompt(market_state, portfolio, account_info)
-        
-        response = self._call_llm(prompt)
-        
-        decisions = self._parse_response(response)
-        
-        return decisions
+    def make_decision(self, market_state: Dict, portfolio: Dict,
+                     account_info: Dict, include_reasoning: bool = True) -> Dict:
+        """
+        Make trading decision with optional chain-of-thought reasoning
+
+        Args:
+            market_state: Current market data
+            portfolio: Current portfolio state
+            account_info: Account information
+            include_reasoning: Whether to request chain-of-thought reasoning
+
+        Returns:
+            Dict with decisions and optional 'reasoning' field
+        """
+        prompt = self._build_prompt(market_state, portfolio, account_info, include_reasoning)
+
+        response = self._call_llm(prompt, cost_type='decision')
+
+        # Parse response and extract reasoning if included
+        result = self._parse_response_with_reasoning(response, include_reasoning)
+
+        return result
     
-    def _build_prompt(self, market_state: Dict, portfolio: Dict, 
-                     account_info: Dict) -> str:
+    def _build_prompt(self, market_state: Dict, portfolio: Dict,
+                     account_info: Dict, include_reasoning: bool = True) -> str:
+        """Build prompt with optional chain-of-thought reasoning"""
+
         prompt = f"""You are a professional cryptocurrency trader. Analyze the market and make trading decisions.
 
 MARKET DATA:
@@ -39,7 +54,7 @@ MARKET DATA:
             if 'indicators' in data and data['indicators']:
                 indicators = data['indicators']
                 prompt += f"  SMA7: ${indicators.get('sma_7', 0):.2f}, SMA14: ${indicators.get('sma_14', 0):.2f}, RSI: {indicators.get('rsi_14', 0):.1f}\n"
-        
+
         prompt += f"""
 ACCOUNT STATUS:
 - Initial Capital: ${account_info['initial_capital']:.2f}
@@ -54,7 +69,7 @@ CURRENT POSITIONS:
                 prompt += f"- {pos['coin']} {pos['side']}: {pos['quantity']:.4f} @ ${pos['avg_price']:.2f} ({pos['leverage']}x)\n"
         else:
             prompt += "None\n"
-        
+
         prompt += """
 TRADING RULES:
 1. Signals: buy_to_enter (long), sell_to_enter (short), close_position, hold
@@ -70,7 +85,40 @@ TRADING RULES:
    - Close losing positions quickly
    - Let winners run
    - Use technical indicators
+"""
 
+        if include_reasoning:
+            prompt += """
+REASONING PROCESS:
+Before making your decision, think through the following:
+1. What are the key market signals I'm seeing? (trend, momentum, volume)
+2. What risks do I see in each potential trade?
+3. Why is this the right position size given current portfolio state?
+4. How confident am I in this decision and why?
+5. What's my exit strategy if the trade goes against me?
+
+Provide your reasoning, then output your decisions.
+
+OUTPUT FORMAT:
+```json
+{
+  "reasoning": "Your step-by-step thought process (2-4 sentences explaining your analysis and decision logic)",
+  "decisions": {
+    "COIN": {
+      "signal": "buy_to_enter|sell_to_enter|hold|close_position",
+      "quantity": 0.5,
+      "leverage": 10,
+      "profit_target": 45000.0,
+      "stop_loss": 42000.0,
+      "confidence": 0.75,
+      "justification": "Brief reason"
+    }
+  }
+}
+```
+"""
+        else:
+            prompt += """
 OUTPUT FORMAT (JSON only):
 ```json
 {
@@ -85,13 +133,23 @@ OUTPUT FORMAT (JSON only):
   }
 }
 ```
-
-Analyze and output JSON only.
 """
-        
+
+        prompt += "\nAnalyze and output JSON only."
+
         return prompt
     
-    def _call_llm(self, prompt: str) -> str:
+    def _call_llm(self, prompt: str, cost_type: str = 'other') -> str:
+        """
+        Call LLM API with cost tracking
+
+        Args:
+            prompt: The prompt to send
+            cost_type: Type of operation for cost tracking (decision, evaluation, etc.)
+
+        Returns:
+            Response text from LLM
+        """
         try:
             base_url = self.api_url.rstrip('/')
             if not base_url.endswith('/v1'):
@@ -123,10 +181,10 @@ Analyze and output JSON only.
 
             # Track AI costs if database is available
             if self.db and self.model_id:
-                self._track_cost(response, 'decision')
+                self._track_cost(response, cost_type)
 
             return response.choices[0].message.content
-            
+
         except APIConnectionError as e:
             error_msg = f"API connection failed: {str(e)}"
             print(f"[ERROR] {error_msg}")
@@ -157,6 +215,34 @@ Analyze and output JSON only.
             print(f"[ERROR] JSON parse failed: {e}")
             print(f"[DATA] Response:\n{response}")
             return {}
+
+    def _parse_response_with_reasoning(self, response: str, include_reasoning: bool) -> Dict:
+        """
+        Parse response and extract chain-of-thought reasoning if present
+
+        Args:
+            response: Raw LLM response
+            include_reasoning: Whether reasoning was requested
+
+        Returns:
+            Dict with 'decisions' and optional 'reasoning' field
+        """
+        parsed = self._parse_response(response)
+
+        if not include_reasoning or not parsed:
+            # Return decisions in expected format
+            return parsed if parsed else {}
+
+        # Check if response has the new format with reasoning
+        if 'reasoning' in parsed and 'decisions' in parsed:
+            # New format: {"reasoning": "...", "decisions": {...}}
+            return {
+                'reasoning': parsed.get('reasoning', ''),
+                **parsed.get('decisions', {})
+            }
+        else:
+            # Old format or no reasoning provided - return as-is
+            return parsed
 
     def _track_cost(self, response, cost_type: str):
         """Track AI API costs in database"""

@@ -218,6 +218,27 @@ class Database:
             )
         ''')
 
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS reasoning_evaluations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                model_id INTEGER NOT NULL,
+                conversation_id INTEGER,
+                decision_data TEXT,
+                cot_trace TEXT,
+                logical_consistency REAL,
+                evidence_usage REAL,
+                risk_awareness REAL,
+                clarity REAL,
+                overall_score REAL,
+                feedback TEXT,
+                strengths TEXT,
+                weaknesses TEXT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (model_id) REFERENCES models(id),
+                FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+            )
+        ''')
+
         # Insert default graduation settings if none exist
         cursor.execute('SELECT COUNT(*) FROM graduation_settings')
         if cursor.fetchone()[0] == 0:
@@ -929,4 +950,154 @@ class Database:
         row = cursor.fetchone()
         conn.close()
         return row['total']
+
+    # ============ Reasoning Quality Tracking ============
+
+    def add_reasoning_evaluation(self, model_id: int, conversation_id: int = None,
+                                 decision_data: str = None, cot_trace: str = None,
+                                 evaluation: Dict = None):
+        """
+        Store reasoning quality evaluation in database
+
+        Args:
+            model_id: Model ID
+            conversation_id: Associated conversation ID (optional)
+            decision_data: JSON string of decision data
+            cot_trace: Chain of thought reasoning trace
+            evaluation: Dict with evaluation scores
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            INSERT INTO reasoning_evaluations
+            (model_id, conversation_id, decision_data, cot_trace,
+             logical_consistency, evidence_usage, risk_awareness, clarity,
+             overall_score, feedback, strengths, weaknesses)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            model_id,
+            conversation_id,
+            decision_data,
+            cot_trace,
+            evaluation.get('logical_consistency', 0) if evaluation else 0,
+            evaluation.get('evidence_usage', 0) if evaluation else 0,
+            evaluation.get('risk_awareness', 0) if evaluation else 0,
+            evaluation.get('clarity', 0) if evaluation else 0,
+            evaluation.get('overall_score', 0) if evaluation else 0,
+            evaluation.get('feedback', '') if evaluation else '',
+            evaluation.get('strengths', '') if evaluation else '',
+            evaluation.get('weaknesses', '') if evaluation else ''
+        ))
+
+        conn.commit()
+        eval_id = cursor.lastrowid
+        conn.close()
+        return eval_id
+
+    def get_reasoning_evaluations(self, model_id: int, limit: int = 50) -> List[Dict]:
+        """Get reasoning evaluations for a model"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT * FROM reasoning_evaluations
+            WHERE model_id = ?
+            ORDER BY timestamp DESC
+            LIMIT ?
+        ''', (model_id, limit))
+
+        rows = cursor.fetchall()
+        conn.close()
+
+        evaluations = []
+        for row in rows:
+            evaluations.append(dict(row))
+
+        return evaluations
+
+    def get_reasoning_quality_stats(self, model_id: int, days: int = 30) -> Dict:
+        """
+        Get aggregate reasoning quality statistics
+
+        Args:
+            model_id: Model ID
+            days: Number of days to look back
+
+        Returns:
+            Dict with average scores and trends
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        # Get overall stats
+        cursor.execute('''
+            SELECT
+                COUNT(*) as total_evaluations,
+                AVG(overall_score) as avg_overall,
+                AVG(logical_consistency) as avg_logical,
+                AVG(evidence_usage) as avg_evidence,
+                AVG(risk_awareness) as avg_risk,
+                AVG(clarity) as avg_clarity,
+                MIN(overall_score) as min_score,
+                MAX(overall_score) as max_score
+            FROM reasoning_evaluations
+            WHERE model_id = ?
+            AND timestamp >= datetime('now', ? || ' days')
+        ''', (model_id, -days))
+
+        stats_row = cursor.fetchone()
+
+        # Get recent low-quality decisions (score < 3.5)
+        cursor.execute('''
+            SELECT id, overall_score, feedback, timestamp
+            FROM reasoning_evaluations
+            WHERE model_id = ? AND overall_score < 3.5
+            ORDER BY timestamp DESC
+            LIMIT 5
+        ''', (model_id,))
+
+        low_quality = []
+        for row in cursor.fetchall():
+            low_quality.append(dict(row))
+
+        # Get trend data (last 7 days vs previous 7 days)
+        cursor.execute('''
+            SELECT AVG(overall_score) as recent_avg
+            FROM reasoning_evaluations
+            WHERE model_id = ? AND timestamp >= datetime('now', '-7 days')
+        ''', (model_id,))
+        recent_avg = cursor.fetchone()['recent_avg'] or 0
+
+        cursor.execute('''
+            SELECT AVG(overall_score) as previous_avg
+            FROM reasoning_evaluations
+            WHERE model_id = ?
+            AND timestamp >= datetime('now', '-14 days')
+            AND timestamp < datetime('now', '-7 days')
+        ''', (model_id,))
+        previous_avg = cursor.fetchone()['previous_avg'] or 0
+
+        conn.close()
+
+        return {
+            'total_evaluations': stats_row['total_evaluations'] or 0,
+            'average_scores': {
+                'overall': round(stats_row['avg_overall'] or 0, 2),
+                'logical_consistency': round(stats_row['avg_logical'] or 0, 2),
+                'evidence_usage': round(stats_row['avg_evidence'] or 0, 2),
+                'risk_awareness': round(stats_row['avg_risk'] or 0, 2),
+                'clarity': round(stats_row['avg_clarity'] or 0, 2)
+            },
+            'score_range': {
+                'min': round(stats_row['min_score'] or 0, 2),
+                'max': round(stats_row['max_score'] or 0, 2)
+            },
+            'trend': {
+                'recent_avg': round(recent_avg, 2),
+                'previous_avg': round(previous_avg, 2),
+                'direction': 'improving' if recent_avg > previous_avg else 'declining' if recent_avg < previous_avg else 'stable'
+            },
+            'low_quality_decisions': low_quality
+        }
 
