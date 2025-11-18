@@ -2436,6 +2436,177 @@ def get_model_graduation_status(model_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# ============ Benchmark Comparison API ============
+
+@app.route('/api/models/<int:model_id>/benchmark-comparison', methods=['GET'])
+def get_benchmark_comparison(model_id):
+    """Compare model performance against buy & hold benchmarks"""
+    try:
+        from datetime import datetime
+
+        # Get model info and first trade date
+        conn = db.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT * FROM models WHERE id = ?', (model_id,))
+        model = cursor.fetchone()
+        if not model:
+            conn.close()
+            return jsonify({'error': 'Model not found'}), 404
+
+        # Get first and last trade dates
+        cursor.execute('''
+            SELECT MIN(timestamp) as first_trade, MAX(timestamp) as last_trade
+            FROM trades WHERE model_id = ?
+        ''', (model_id,))
+        trade_dates = cursor.fetchone()
+        first_trade_date = trade_dates['first_trade']
+        last_trade_date = trade_dates['last_trade']
+
+        if not first_trade_date:
+            conn.close()
+            return jsonify({
+                'error': 'No trades found',
+                'message': 'Model has no trading history to compare'
+            }), 400
+
+        # Get model's performance
+        cursor.execute('''
+            SELECT
+                COUNT(*) as total_trades,
+                COUNT(CASE WHEN pnl > 0 THEN 1 END) as wins,
+                COALESCE(SUM(pnl), 0) as total_pnl
+            FROM trades WHERE model_id = ?
+        ''', (model_id,))
+        model_stats = cursor.fetchone()
+
+        win_rate = (model_stats['wins'] / model_stats['total_trades'] * 100) if model_stats['total_trades'] > 0 else 0
+
+        # Get model's current total value
+        cursor.execute('''
+            SELECT total_value FROM account_values
+            WHERE model_id = ? ORDER BY timestamp DESC LIMIT 1
+        ''', (model_id,))
+        latest_value_row = cursor.fetchone()
+        current_value = latest_value_row['total_value'] if latest_value_row else model['initial_capital']
+
+        model_return_pct = ((current_value - model['initial_capital']) / model['initial_capital'] * 100)
+
+        conn.close()
+
+        # Calculate benchmarks
+        benchmarks = []
+
+        # Get price at start and end
+        coins = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE']
+
+        for coin in ['BTC', 'ETH']:
+            start_price = db.get_price_at_timestamp(coin, first_trade_date)
+            end_price = db.get_price_at_timestamp(coin, last_trade_date)
+
+            if start_price and end_price:
+                benchmark_return = ((end_price - start_price) / start_price * 100)
+                benchmarks.append({
+                    'name': f'Buy & Hold {coin}',
+                    'return_pct': round(benchmark_return, 2),
+                    'outperformed': model_return_pct > benchmark_return
+                })
+            else:
+                benchmarks.append({
+                    'name': f'Buy & Hold {coin}',
+                    'return_pct': None,
+                    'outperformed': None,
+                    'note': 'Insufficient price data'
+                })
+
+        # Calculate 50/50 BTC/ETH
+        btc_start = db.get_price_at_timestamp('BTC', first_trade_date)
+        btc_end = db.get_price_at_timestamp('BTC', last_trade_date)
+        eth_start = db.get_price_at_timestamp('ETH', first_trade_date)
+        eth_end = db.get_price_at_timestamp('ETH', last_trade_date)
+
+        if all([btc_start, btc_end, eth_start, eth_end]):
+            btc_return = ((btc_end - btc_start) / btc_start * 100)
+            eth_return = ((eth_end - eth_start) / eth_start * 100)
+            balanced_return = (btc_return + eth_return) / 2
+
+            benchmarks.append({
+                'name': '50/50 BTC/ETH',
+                'return_pct': round(balanced_return, 2),
+                'outperformed': model_return_pct > balanced_return
+            })
+
+        # Calculate equal weight all coins
+        equal_weight_returns = []
+        for coin in coins:
+            start_price = db.get_price_at_timestamp(coin, first_trade_date)
+            end_price = db.get_price_at_timestamp(coin, last_trade_date)
+            if start_price and end_price:
+                coin_return = ((end_price - start_price) / start_price * 100)
+                equal_weight_returns.append(coin_return)
+
+        if len(equal_weight_returns) >= 4:
+            avg_return = sum(equal_weight_returns) / len(equal_weight_returns)
+            benchmarks.append({
+                'name': f'Equal Weight ({len(equal_weight_returns)} coins)',
+                'return_pct': round(avg_return, 2),
+                'outperformed': model_return_pct > avg_return
+            })
+
+        return jsonify({
+            'model_id': model_id,
+            'model_name': model['name'],
+            'testing_period': {
+                'start': first_trade_date,
+                'end': last_trade_date
+            },
+            'model_performance': {
+                'initial_capital': model['initial_capital'],
+                'current_value': current_value,
+                'return_pct': round(model_return_pct, 2),
+                'total_pnl': round(model_stats['total_pnl'], 2),
+                'total_trades': model_stats['total_trades'],
+                'win_rate': round(win_rate, 1)
+            },
+            'benchmarks': benchmarks,
+            'verdict': generateVerdict(model_return_pct, benchmarks)
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+def generateVerdict(model_return, benchmarks):
+    """Generate a verdict on whether AI is worth using"""
+    valid_benchmarks = [b for b in benchmarks if b['return_pct'] is not None]
+
+    if not valid_benchmarks:
+        return {
+            'recommendation': 'insufficient_data',
+            'message': 'Not enough price data to compare. Continue testing.'
+        }
+
+    best_benchmark = max(valid_benchmarks, key=lambda x: x['return_pct'])
+    outperformed_count = sum(1 for b in valid_benchmarks if b.get('outperformed'))
+
+    if model_return > best_benchmark['return_pct']:
+        return {
+            'recommendation': 'use_ai',
+            'message': f"✅ AI is outperforming all benchmarks! ({model_return:.1f}% vs {best_benchmark['return_pct']:.1f}% best)",
+            'icon': '🎉'
+        }
+    elif outperformed_count >= len(valid_benchmarks) / 2:
+        return {
+            'recommendation': 'use_ai_conditional',
+            'message': f"⚠️ AI beats {outperformed_count}/{len(valid_benchmarks)} benchmarks. Consider risk-adjusted performance.",
+            'icon': '📊'
+        }
+    else:
+        return {
+            'recommendation': 'use_passive',
+            'message': f"❌ Passive strategy is winning. Best: {best_benchmark['name']} ({best_benchmark['return_pct']:.1f}%)",
+            'icon': '💡'
+        }
+
 if __name__ == '__main__':
     import webbrowser
     import os

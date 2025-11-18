@@ -482,7 +482,9 @@ async function loadDashboardData() {
             loadAssetAllocation().catch(e => console.error('Asset allocation:', e)),
             loadPerformanceAnalytics().catch(e => console.error('Performance analytics:', e)),
             (typeof loadTradeAnalytics === 'function' ? loadTradeAnalytics() : Promise.resolve()).catch(e => console.error('Trade analytics:', e)),
-            (typeof loadModelSettingsWidget === 'function' ? loadModelSettingsWidget() : Promise.resolve()).catch(e => console.error('Model settings:', e))
+            (typeof loadModelSettingsWidget === 'function' ? loadModelSettingsWidget() : Promise.resolve()).catch(e => console.error('Model settings:', e)),
+            (typeof loadGraduationStatus === 'function' ? loadGraduationStatus(currentModelId) : Promise.resolve()).catch(e => console.error('Graduation status:', e)),
+            (typeof loadBenchmarkComparison === 'function' ? loadBenchmarkComparison(currentModelId) : Promise.resolve()).catch(e => console.error('Benchmark comparison:', e))
         ]);
     } catch (error) {
         console.error('Failed to load dashboard data:', error);
