@@ -486,7 +486,8 @@ async function loadDashboardData() {
             (typeof loadGraduationStatus === 'function' ? loadGraduationStatus(currentModelId) : Promise.resolve()).catch(e => console.error('Graduation status:', e)),
             (typeof loadBenchmarkComparison === 'function' ? loadBenchmarkComparison(currentModelId) : Promise.resolve()).catch(e => console.error('Benchmark comparison:', e)),
             (typeof loadCostBreakdown === 'function' ? loadCostBreakdown(currentModelId) : Promise.resolve()).catch(e => console.error('Cost breakdown:', e)),
-            (typeof loadReasoningQuality === 'function' ? loadReasoningQuality(currentModelId) : Promise.resolve()).catch(e => console.error('Reasoning quality:', e))
+            (typeof loadReasoningQuality === 'function' ? loadReasoningQuality(currentModelId) : Promise.resolve()).catch(e => console.error('Reasoning quality:', e)),
+            (typeof loadDashboardRiskProfile === 'function' ? loadDashboardRiskProfile() : Promise.resolve()).catch(e => console.error('Dashboard risk profile:', e))
         ]);
     } catch (error) {
         console.error('Failed to load dashboard data:', error);
@@ -3163,3 +3164,32 @@ if (window.setupAutoRefresh) {
 }
 
 // REMOVED: Duplicate DOMContentLoaded listener - consolidated at line 8
+
+// ============ Dashboard Risk Profile Display ============
+
+async function loadDashboardRiskProfile() {
+    if (!currentModelId) return;
+
+    try {
+        const response = await fetch(`/api/models/${currentModelId}/active-profile`);
+        if (!response.ok) return;
+
+        const data = await response.json();
+
+        if (data.active_profile) {
+            const profile = data.active_profile;
+
+            // Update profile card
+            document.getElementById('dashboardProfileIcon').textContent = profile.icon || '🛡️';
+            document.getElementById('dashboardProfileName').textContent = profile.name;
+            document.getElementById('dashboardProfileDesc').textContent = profile.description || '--';
+
+            // Update stats
+            document.getElementById('dashboardMaxPos').textContent = `${profile.max_position_size_pct}%`;
+            document.getElementById('dashboardMaxLoss').textContent = `${profile.max_daily_loss_pct}%`;
+            document.getElementById('dashboardMaxTrades').textContent = profile.max_daily_trades;
+        }
+    } catch (error) {
+        console.error('Failed to load dashboard risk profile:', error);
+    }
+}

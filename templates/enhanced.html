@@ -824,6 +824,45 @@
                 </div>
             </div>
 
+            <!-- Active Risk Profile Indicator -->
+            <div class="section">
+                <div class="section-header">
+                    <h2>Active Risk Profile</h2>
+                    <span class="help-icon" title="Current risk management settings for this model">
+                        <i class="bi bi-question-circle"></i>
+                    </span>
+                </div>
+                <div class="risk-profile-status" id="dashboardRiskProfileStatus">
+                    <div class="profile-status-card">
+                        <div class="profile-status-icon" id="dashboardProfileIcon">🛡️</div>
+                        <div class="profile-status-content">
+                            <div class="profile-status-name" id="dashboardProfileName">Loading...</div>
+                            <div class="profile-status-desc" id="dashboardProfileDesc">--</div>
+                        </div>
+                        <div class="profile-status-actions">
+                            <button class="btn-secondary btn-sm" onclick="switchPage('settings'); setTimeout(() => document.getElementById('riskModelSelect').scrollIntoView({behavior: 'smooth', block: 'center'}), 300)">
+                                <i class="bi bi-gear"></i>
+                                Configure
+                            </button>
+                        </div>
+                    </div>
+                    <div class="profile-quick-stats" id="dashboardProfileStats">
+                        <div class="stat-item">
+                            <span class="stat-label">Max Position</span>
+                            <span class="stat-value" id="dashboardMaxPos">--</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Max Daily Loss</span>
+                            <span class="stat-value" id="dashboardMaxLoss">--</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Max Daily Trades</span>
+                            <span class="stat-value" id="dashboardMaxTrades">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
 
         <!-- Page: Models -->
@@ -955,9 +994,17 @@
             <div class="section">
                 <div class="section-header">
                     <h2>Risk Profile Presets</h2>
-                    <span class="help-icon" title="Quick-switch between pre-configured risk settings">
-                        <i class="bi bi-question-circle"></i>
-                    </span>
+                    <div class="header-right">
+                        <div class="model-selector-compact">
+                            <label for="riskModelSelect" style="margin-right: 8px; color: var(--text-secondary);">Configuring:</label>
+                            <select id="riskModelSelect" class="form-select-compact">
+                                <option value="">Select a model...</option>
+                            </select>
+                        </div>
+                        <span class="help-icon" title="Quick-switch between pre-configured risk settings">
+                            <i class="bi bi-question-circle"></i>
+                        </span>
+                    </div>
                 </div>
                 <div class="risk-profiles-container" id="riskProfilesContainer">
                     <div class="profiles-grid" id="profilesGrid">
@@ -979,10 +1026,16 @@
             <div class="section">
                 <div class="section-header">
                     <h2>Risk Management Settings</h2>
-                    <span class="profile-indicator" id="activeProfileIndicator" style="display: none;">
-                        <i class="bi bi-bookmark-fill"></i>
-                        <span id="activeProfileName"></span>
-                    </span>
+                    <div class="header-right">
+                        <span class="profile-indicator" id="activeProfileIndicator" style="display: none;">
+                            <i class="bi bi-bookmark-fill"></i>
+                            <span id="activeProfileName"></span>
+                        </span>
+                        <span class="config-model-badge" id="configModelBadge" style="display: none;">
+                            <i class="bi bi-gear-fill"></i>
+                            <span id="configModelName"></span>
+                        </span>
+                    </div>
                 </div>
                 <div class="settings-form" id="settingsForm">
                     <div class="form-group">

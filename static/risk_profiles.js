@@ -5,6 +5,7 @@
 // Note: currentModelId is defined in enhanced.js, so we don't redeclare it here
 let allRiskProfiles = [];
 let activeProfileId = null;
+let riskConfigModelId = null;  // Track which model we're configuring
 
 // Initialize risk profiles when settings page loads
 async function initRiskProfiles() {
@@ -17,11 +18,61 @@ async function initRiskProfiles() {
 
     try {
         console.log('Initializing risk profiles...');
+        await populateRiskModelSelector();
         await loadRiskProfiles();
         await loadActiveProfile();
         setupProfileEventListeners();
     } catch (error) {
         console.error('Failed to initialize risk profiles:', error);
+    }
+}
+
+// Populate model selector in risk settings
+async function populateRiskModelSelector() {
+    const selector = document.getElementById('riskModelSelect');
+    if (!selector) return;
+
+    try {
+        const response = await fetch('/api/models');
+        const models = await response.json();
+
+        selector.innerHTML = '<option value="">Select a model...</option>' +
+            models.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+
+        // Select current model if available
+        if (currentModelId) {
+            selector.value = currentModelId;
+            riskConfigModelId = currentModelId;
+            updateConfigModelBadge(models.find(m => m.id === currentModelId));
+        }
+
+        // Handle model selection change
+        selector.addEventListener('change', async (e) => {
+            riskConfigModelId = parseInt(e.target.value);
+            if (riskConfigModelId) {
+                const selectedModel = models.find(m => m.id === riskConfigModelId);
+                updateConfigModelBadge(selectedModel);
+                await loadActiveProfile();
+                await loadModelSettings();
+                if (typeof showToast === 'function') {
+                    showToast(`Now configuring: ${selectedModel.name}`, 'info');
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Failed to populate model selector:', error);
+    }
+}
+
+// Update the badge showing which model is being configured
+function updateConfigModelBadge(model) {
+    const badge = document.getElementById('configModelBadge');
+    const nameSpan = document.getElementById('configModelName');
+
+    if (badge && nameSpan && model) {
+        badge.style.display = 'inline-flex';
+        nameSpan.textContent = model.name;
     }
 }
 
@@ -534,9 +585,17 @@ async function createCustomProfile() {
 // Helper: Get current model ID from dropdown
 // Note: Use window.currentModelId if available from enhanced.js, otherwise get from select
 function getCurrentModelId() {
+    // Priority 1: Use riskConfigModelId if we're configuring risk settings
+    if (riskConfigModelId) {
+        return riskConfigModelId;
+    }
+
+    // Priority 2: Use global currentModelId
     if (typeof window.currentModelId !== 'undefined' && window.currentModelId) {
         return window.currentModelId;
     }
+
+    // Priority 3: Get from model selector
     const select = document.getElementById('modelSelect');
     return select ? parseInt(select.value) : null;
 }

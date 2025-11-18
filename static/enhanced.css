@@ -4504,3 +4504,164 @@ input:checked + .toggle-slider:before {
 .insight-item i {
     color: var(--color-info);
 }
+
+/* ============ Risk Settings Per-Model UI Improvements ============ */
+
+.model-selector-compact {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-right: 16px;
+}
+
+.form-select-compact {
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-size: 14px;
+    min-width: 200px;
+    cursor: pointer;
+}
+
+.form-select-compact:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+.config-model-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 16px;
+    background: var(--bg-tertiary);
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-left: 12px;
+}
+
+.config-model-badge i {
+    color: var(--color-info);
+}
+
+.profile-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 16px;
+    background: rgba(40, 167, 69, 0.2);
+    font-size: 13px;
+    color: #28a745;
+    font-weight: 500;
+}
+
+.profile-indicator i {
+    color: #28a745;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Risk profile card active state enhancement */
+.profile-card.active {
+    border: 2px solid var(--color-success);
+    box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.2);
+}
+
+.profile-card.active::after {
+    content: '✓ Active';
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: var(--color-success);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* ============ Dashboard Risk Profile Status ============ */
+
+.risk-profile-status {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.profile-status-card {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    background: var(--bg-tertiary);
+    padding: 20px;
+    border-radius: var(--radius);
+}
+
+.profile-status-icon {
+    font-size: 48px;
+    flex-shrink: 0;
+}
+
+.profile-status-content {
+    flex: 1;
+}
+
+.profile-status-name {
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.profile-status-desc {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.profile-status-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-sm {
+    padding: 8px 16px;
+    font-size: 13px;
+}
+
+.profile-quick-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+}
+
+.stat-item {
+    background: var(--bg-tertiary);
+    padding: 16px;
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.stat-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.stat-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+/* Make profile card position relative for active badge */
+.profile-card {
+    position: relative;
+}
