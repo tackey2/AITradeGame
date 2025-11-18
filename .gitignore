@@ -90,3 +90,4 @@ build_package.py
 build_all.py
 AITradeGame.db.backup
 .claude/
+app.py.backup
