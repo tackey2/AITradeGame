@@ -14,3 +14,6 @@ python-dotenv==1.0.0
 # NEW - Scheduling
 APScheduler==3.10.4
 
+# NEW - Reporting (Sprint 3)
+weasyprint>=60.0  # PDF generation (optional - will fallback to HTML if not available)
+
