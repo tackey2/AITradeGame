@@ -953,6 +953,56 @@ class EnhancedDatabase(Database):
         conn.close()
         print("✅ System risk profiles initialized")
 
+        # ============ Reports Table ============
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                report_type TEXT NOT NULL,  -- 'weekly_comparative', 'daily_individual', 'custom'
+                model_ids TEXT,  -- JSON array: '["1","2","3"]' or '"1"' for single model
+                period_start DATE NOT NULL,
+                period_end DATE NOT NULL,
+                file_path TEXT,
+                file_size INTEGER,
+                recommendation TEXT,  -- 'go_live', 'continue_testing', 'not_ready', NULL for single model
+                confidence_score REAL,
+                top_model_id INTEGER,  -- ID of recommended model (for comparative reports)
+                generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                generated_by_model TEXT,  -- Which AI model generated the analysis
+                status TEXT DEFAULT 'completed',  -- 'pending', 'generating', 'completed', 'failed'
+                error_message TEXT,
+                metadata TEXT  -- JSON: additional report metadata
+            )
+        ''')
+
+        # ============ Report Settings Table ============
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS report_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                analysis_ai_provider TEXT DEFAULT 'anthropic',  -- 'anthropic', 'openai', 'custom'
+                analysis_ai_model TEXT DEFAULT 'claude-sonnet-3.5',
+                analysis_api_key TEXT,
+                analysis_api_url TEXT,
+                trend_lookback_weeks INTEGER DEFAULT 2,  -- Start with 2 weeks
+                auto_expand_trend BOOLEAN DEFAULT 1,  -- Auto-expand to 4-8 weeks after 30 days
+                daily_report_retention_days INTEGER DEFAULT 30,
+                weekly_report_retention_days INTEGER DEFAULT 90,
+                enable_market_context BOOLEAN DEFAULT 1,
+                enable_behavior_analysis BOOLEAN DEFAULT 1,
+                enable_confidence_score BOOLEAN DEFAULT 1,
+                enable_change_detection BOOLEAN DEFAULT 1,
+                enable_trend_analysis BOOLEAN DEFAULT 1,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # Initialize default settings
+        cursor.execute('INSERT OR IGNORE INTO report_settings (id) VALUES (1)')
+
+        conn.commit()
+        conn.close()
+        print("✅ Reports schema initialized")
+
     def get_all_risk_profiles(self, include_inactive: bool = False) -> List[Dict]:
         """Get all risk profiles (system and custom)"""
         conn = self.get_connection()
@@ -1297,3 +1347,195 @@ class EnhancedDatabase(Database):
         conn.close()
 
         return [dict(row) for row in rows]
+
+    # ============ Report Management ============
+
+    def create_report(self, report_type: str, model_ids: list, period_start: str, period_end: str,
+                     generated_by_model: str = None) -> int:
+        """Create a new report entry"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            INSERT INTO reports
+            (report_type, model_ids, period_start, period_end, status, generated_by_model)
+            VALUES (?, ?, ?, ?, 'generating', ?)
+        ''', (report_type, json.dumps(model_ids), period_start, period_end, generated_by_model))
+
+        report_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+
+        return report_id
+
+    def update_report(self, report_id: int, updates: Dict):
+        """Update report with results"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        fields = []
+        values = []
+
+        for key, value in updates.items():
+            if key in ['id', 'generated_at']:
+                continue
+            fields.append(f"{key} = ?")
+
+            if key == 'metadata' and isinstance(value, dict):
+                values.append(json.dumps(value))
+            else:
+                values.append(value)
+
+        if not fields:
+            conn.close()
+            return
+
+        values.append(report_id)
+        query = f"UPDATE reports SET {', '.join(fields)} WHERE id = ?"
+
+        cursor.execute(query, values)
+        conn.commit()
+        conn.close()
+
+    def get_report(self, report_id: int) -> Optional[Dict]:
+        """Get a specific report"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT * FROM reports WHERE id = ?', (report_id,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            data = dict(row)
+            if data['model_ids']:
+                data['model_ids'] = json.loads(data['model_ids'])
+            if data['metadata']:
+                data['metadata'] = json.loads(data['metadata'])
+            return data
+        return None
+
+    def get_all_reports(self, report_type: str = None, limit: int = 50) -> List[Dict]:
+        """Get all reports, optionally filtered by type"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        if report_type:
+            cursor.execute('''
+                SELECT * FROM reports
+                WHERE report_type = ?
+                ORDER BY generated_at DESC
+                LIMIT ?
+            ''', (report_type, limit))
+        else:
+            cursor.execute('''
+                SELECT * FROM reports
+                ORDER BY generated_at DESC
+                LIMIT ?
+            ''', (limit,))
+
+        rows = cursor.fetchall()
+        conn.close()
+
+        results = []
+        for row in rows:
+            data = dict(row)
+            if data['model_ids']:
+                data['model_ids'] = json.loads(data['model_ids'])
+            if data['metadata']:
+                data['metadata'] = json.loads(data['metadata'])
+            results.append(data)
+
+        return results
+
+    def delete_report(self, report_id: int):
+        """Delete a report"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('DELETE FROM reports WHERE id = ?', (report_id,))
+        conn.commit()
+        conn.close()
+
+    def cleanup_old_reports(self):
+        """Clean up old reports based on retention settings"""
+        settings = self.get_report_settings()
+
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        # Delete old daily reports
+        cursor.execute('''
+            DELETE FROM reports
+            WHERE report_type = 'daily_individual'
+            AND generated_at < datetime('now', '-' || ? || ' days')
+        ''', (settings['daily_report_retention_days'],))
+
+        daily_deleted = cursor.rowcount
+
+        # Delete old weekly reports
+        cursor.execute('''
+            DELETE FROM reports
+            WHERE report_type = 'weekly_comparative'
+            AND generated_at < datetime('now', '-' || ? || ' days')
+        ''', (settings['weekly_report_retention_days'],))
+
+        weekly_deleted = cursor.rowcount
+
+        conn.commit()
+        conn.close()
+
+        return {'daily_deleted': daily_deleted, 'weekly_deleted': weekly_deleted}
+
+    def get_report_settings(self) -> Dict:
+        """Get report settings"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT * FROM report_settings WHERE id = 1')
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            return dict(row)
+        else:
+            # Return defaults
+            return {
+                'analysis_ai_provider': 'anthropic',
+                'analysis_ai_model': 'claude-sonnet-3.5',
+                'analysis_api_key': None,
+                'analysis_api_url': None,
+                'trend_lookback_weeks': 2,
+                'auto_expand_trend': True,
+                'daily_report_retention_days': 30,
+                'weekly_report_retention_days': 90,
+                'enable_market_context': True,
+                'enable_behavior_analysis': True,
+                'enable_confidence_score': True,
+                'enable_change_detection': True,
+                'enable_trend_analysis': True
+            }
+
+    def update_report_settings(self, settings: Dict):
+        """Update report settings"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        fields = []
+        values = []
+
+        for key, value in settings.items():
+            if key in ['id', 'updated_at']:
+                continue
+            fields.append(f"{key} = ?")
+            values.append(value)
+
+        if not fields:
+            conn.close()
+            return
+
+        query = f"UPDATE report_settings SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = 1"
+
+        cursor.execute(query, values)
+        conn.commit()
+        conn.close()
