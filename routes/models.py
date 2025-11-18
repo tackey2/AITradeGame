@@ -54,7 +54,9 @@ def add_model():
             ai_trader=AITrader(
                 api_key=model['api_key'],
                 api_url=model['api_url'],
-                model_name=model['model_name']
+                model_name=model['model_name'],
+                db=db,
+                model_id=model_id
             ),
             trade_fee_rate=TRADE_FEE_RATE  # 新增：传入费率
         )
@@ -90,7 +92,9 @@ def update_model(model_id):
                 ai_trader=AITrader(
                     api_key=model['api_key'],
                     api_url=model['api_url'],
-                    model_name=model['model_name']
+                    model_name=model['model_name'],
+                    db=db,
+                    model_id=model_id
                 ),
                 trade_fee_rate=TRADE_FEE_RATE
             )

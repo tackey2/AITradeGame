@@ -141,6 +141,16 @@ def get_portfolio_metrics(model_id):
         value_change = total_value - yesterday_value
         value_change_pct = (value_change / yesterday_value * 100) if yesterday_value > 0 else 0
 
+        # Calculate total costs
+        total_trading_fees = sum(t.get('fee', 0) for t in all_trades)
+        total_slippage = sum(t.get('slippage', 0) for t in all_trades)
+        total_ai_costs = db.get_total_ai_costs(model_id)
+        total_costs = total_trading_fees + total_slippage + total_ai_costs
+
+        # Calculate net profit
+        net_pnl = total_pnl - total_costs
+        net_pnl_pct = (net_pnl / initial_capital * 100) if initial_capital > 0 else 0
+
         return jsonify({
             'total_value': total_value,
             'value_change': value_change,
@@ -154,7 +164,16 @@ def get_portfolio_metrics(model_id):
             'total_trades': total_trades_count,
             'open_positions': open_positions,
             'positions_value': positions_value,
-            'initial_capital': initial_capital
+            'initial_capital': initial_capital,
+            # Cost tracking
+            'total_costs': total_costs,
+            'net_pnl': net_pnl,
+            'net_pnl_pct': net_pnl_pct,
+            'cost_breakdown': {
+                'trading_fees': total_trading_fees,
+                'slippage': total_slippage,
+                'ai_costs': total_ai_costs
+            }
         })
     except Exception as e:
         import traceback
@@ -796,6 +815,96 @@ def get_benchmark_comparison(model_id):
         })
 
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@models_analytics_bp.route('/<int:model_id>/cost-breakdown', methods=['GET'])
+def get_cost_breakdown(model_id):
+    """Get detailed cost breakdown for a model"""
+    try:
+        # Get all trades
+        trades = enhanced_db.get_trades(model_id, limit=10000)
+
+        # Calculate trading costs
+        total_trading_fees = sum(t.get('fee', 0) for t in trades)
+        total_slippage = sum(t.get('slippage', 0) for t in trades)
+
+        # Calculate AI costs
+        total_ai_costs = db.get_total_ai_costs(model_id)
+
+        # Get model info for initial capital
+        model = db.get_model(model_id)
+        if not model:
+            return jsonify({'error': 'Model not found'}), 404
+
+        initial_capital = model['initial_capital']
+
+        # Get current portfolio value
+        prices_data = market_fetcher.get_current_prices(['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE'])
+        current_prices = {coin: prices_data[coin]['price'] for coin in prices_data}
+        portfolio = db.get_portfolio(model_id, current_prices)
+        total_value = portfolio.get('total_value', initial_capital)
+
+        # Calculate P&L
+        gross_pnl = total_value - initial_capital
+        total_costs = total_trading_fees + total_slippage + total_ai_costs
+        net_pnl = gross_pnl - total_costs
+
+        # Calculate cost percentages
+        trading_fees_pct = (total_trading_fees / initial_capital * 100) if initial_capital > 0 else 0
+        slippage_pct = (total_slippage / initial_capital * 100) if initial_capital > 0 else 0
+        ai_costs_pct = (total_ai_costs / initial_capital * 100) if initial_capital > 0 else 0
+        total_costs_pct = (total_costs / initial_capital * 100) if initial_capital > 0 else 0
+
+        # Get AI cost breakdown by type
+        ai_costs_detail = db.get_ai_costs(model_id)
+        ai_cost_by_type = {}
+        for cost in ai_costs_detail:
+            cost_type = cost['cost_type']
+            if cost_type not in ai_cost_by_type:
+                ai_cost_by_type[cost_type] = 0
+            ai_cost_by_type[cost_type] += cost['cost_usd']
+
+        return jsonify({
+            'model_id': model_id,
+            'model_name': model['name'],
+            'initial_capital': initial_capital,
+            'current_value': total_value,
+            'costs': {
+                'trading_fees': {
+                    'amount': total_trading_fees,
+                    'percentage': trading_fees_pct,
+                    'description': f'Trading fees (0.1% per trade × {len(trades)} trades)'
+                },
+                'slippage': {
+                    'amount': total_slippage,
+                    'percentage': slippage_pct,
+                    'description': f'Estimated slippage (0.05% per trade × {len(trades)} trades)'
+                },
+                'ai_costs': {
+                    'amount': total_ai_costs,
+                    'percentage': ai_costs_pct,
+                    'description': 'AI API calls (decisions + evaluations)',
+                    'breakdown': ai_cost_by_type
+                },
+                'total': {
+                    'amount': total_costs,
+                    'percentage': total_costs_pct
+                }
+            },
+            'profitability': {
+                'gross_pnl': gross_pnl,
+                'gross_pnl_pct': (gross_pnl / initial_capital * 100) if initial_capital > 0 else 0,
+                'net_pnl': net_pnl,
+                'net_pnl_pct': (net_pnl / initial_capital * 100) if initial_capital > 0 else 0,
+                'cost_impact': gross_pnl - net_pnl
+            },
+            'trade_count': len(trades)
+        })
+
+    except Exception as e:
+        import traceback
+        print(f"[ERROR] Cost breakdown failed: {traceback.format_exc()}")
         return jsonify({'error': str(e)}), 500
 
 

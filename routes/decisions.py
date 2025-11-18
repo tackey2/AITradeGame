@@ -61,7 +61,9 @@ def init_enhanced_components(model_id):
         ai_trader = AITrader(
             api_key=provider['api_key'],
             api_url=provider['api_url'],
-            model_name=model['model_name']
+            model_name=model['model_name'],
+            db=_enhanced_db,
+            model_id=model_id
         )
         _explainers[model_id] = AIExplainer(ai_trader)
 

@@ -75,6 +75,7 @@ class Database:
                 side TEXT DEFAULT 'long',
                 pnl REAL DEFAULT 0,
                 fee REAL DEFAULT 0,
+                slippage REAL DEFAULT 0,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (model_id) REFERENCES models(id)
             )
@@ -367,14 +368,15 @@ class Database:
     # ============ Trade Records ============
     
     def add_trade(self, model_id: int, coin: str, signal: str, quantity: float,
-              price: float, leverage: int = 1, side: str = 'long', pnl: float = 0, fee: float = 0):  # 新增fee参数
-        """Add trade record with fee"""
+              price: float, leverage: int = 1, side: str = 'long', pnl: float = 0,
+              fee: float = 0, slippage: float = 0):
+        """Add trade record with fee and slippage"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO trades (model_id, coin, signal, quantity, price, leverage, side, pnl, fee)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)  # 新增fee字段
-        ''', (model_id, coin, signal, quantity, price, leverage, side, pnl, fee))  # 传入fee值
+            INSERT INTO trades (model_id, coin, signal, quantity, price, leverage, side, pnl, fee, slippage)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (model_id, coin, signal, quantity, price, leverage, side, pnl, fee, slippage))
         conn.commit()
         conn.close()
     

@@ -102,7 +102,9 @@ def init_trading_engines():
                     ai_trader=AITrader(
                         api_key=provider['api_key'],
                         api_url=provider['api_url'],
-                        model_name=model['model_name']
+                        model_name=model['model_name'],
+                        db=db,
+                        model_id=model_id
                     ),
                     trade_fee_rate=TRADE_FEE_RATE
                 )

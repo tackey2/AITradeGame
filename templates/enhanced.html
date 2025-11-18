@@ -285,6 +285,22 @@
                 </div>
             </div>
 
+            <!-- Cost Breakdown -->
+            <div class="section" id="costBreakdownSection" style="display: none;">
+                <div class="section-header">
+                    <h2>💰 Cost Breakdown & Profitability</h2>
+                    <button class="btn-icon" id="refreshCostBtn" title="Refresh Costs">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </div>
+                <div class="cost-breakdown-card" id="costBreakdownCard">
+                    <div class="empty-state">
+                        <i class="bi bi-currency-dollar"></i>
+                        <p>Loading cost analysis...</p>
+                    </div>
+                </div>
+            </div>
+
             <!-- Portfolio Value Chart -->
             <div class="section">
                 <div class="section-header">
@@ -1618,6 +1634,7 @@
     <script src="/static/graduation-settings.js"></script>
     <script src="/static/graduation-status.js"></script>
     <script src="/static/benchmark-comparison.js"></script>
+    <script src="/static/cost-breakdown.js"></script>
     <script src="/static/enhanced.js"></script>
     <script src="/static/risk_profiles.js"></script>
 </body>

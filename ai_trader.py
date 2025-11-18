@@ -1,12 +1,22 @@
 import json
-from typing import Dict
+from typing import Dict, Optional
 from openai import OpenAI, APIConnectionError, APIError
 
 class AITrader:
-    def __init__(self, api_key: str, api_url: str, model_name: str):
+    def __init__(self, api_key: str, api_url: str, model_name: str,
+                 db=None, model_id: Optional[int] = None):
         self.api_key = api_key
         self.api_url = api_url
         self.model_name = model_name
+        self.db = db
+        self.model_id = model_id
+
+        # OpenRouter pricing (per 1M tokens) - Update as needed
+        self.pricing = {
+            'z-ai/glm-4.6': {'input': 1.0, 'output': 1.0},  # $1 per 1M tokens (estimate)
+            'minimax/minimax-m2': {'input': 0.5, 'output': 0.5},  # $0.5 per 1M tokens (estimate)
+            'default': {'input': 2.0, 'output': 2.0}  # Default fallback pricing
+        }
     
     def make_decision(self, market_state: Dict, portfolio: Dict, 
                      account_info: Dict) -> Dict:
@@ -89,12 +99,12 @@ Analyze and output JSON only.
                     base_url = base_url.split('/v1')[0] + '/v1'
                 else:
                     base_url = base_url + '/v1'
-            
+
             client = OpenAI(
                 api_key=self.api_key,
                 base_url=base_url
             )
-            
+
             response = client.chat.completions.create(
                 model=self.model_name,
                 messages=[
@@ -110,7 +120,11 @@ Analyze and output JSON only.
                 temperature=0.7,
                 max_tokens=2000
             )
-            
+
+            # Track AI costs if database is available
+            if self.db and self.model_id:
+                self._track_cost(response, 'decision')
+
             return response.choices[0].message.content
             
         except APIConnectionError as e:
@@ -130,12 +144,12 @@ Analyze and output JSON only.
     
     def _parse_response(self, response: str) -> Dict:
         response = response.strip()
-        
+
         if '```json' in response:
             response = response.split('```json')[1].split('```')[0]
         elif '```' in response:
             response = response.split('```')[1].split('```')[0]
-        
+
         try:
             decisions = json.loads(response.strip())
             return decisions
@@ -143,3 +157,42 @@ Analyze and output JSON only.
             print(f"[ERROR] JSON parse failed: {e}")
             print(f"[DATA] Response:\n{response}")
             return {}
+
+    def _track_cost(self, response, cost_type: str):
+        """Track AI API costs in database"""
+        try:
+            # Extract token usage from response
+            usage = response.usage
+            if not usage:
+                return
+
+            prompt_tokens = usage.prompt_tokens
+            completion_tokens = usage.completion_tokens
+            total_tokens = usage.total_tokens
+
+            # Get pricing for this model
+            pricing = self.pricing.get(self.model_name, self.pricing['default'])
+
+            # Calculate cost (pricing is per 1M tokens)
+            input_cost = (prompt_tokens / 1_000_000) * pricing['input']
+            output_cost = (completion_tokens / 1_000_000) * pricing['output']
+            total_cost = input_cost + output_cost
+
+            # Determine provider from API URL
+            provider = 'openrouter' if 'openrouter' in self.api_url.lower() else 'openai'
+
+            # Store in database
+            self.db.add_ai_cost(
+                model_id=self.model_id,
+                cost_type=cost_type,
+                tokens_used=total_tokens,
+                cost_usd=total_cost,
+                provider=provider,
+                model_name=self.model_name
+            )
+
+            print(f"[COST] AI API: {total_tokens} tokens, ${total_cost:.6f} ({cost_type})")
+
+        except Exception as e:
+            # Don't fail the trading decision if cost tracking fails
+            print(f"[WARN] Failed to track AI cost: {e}")

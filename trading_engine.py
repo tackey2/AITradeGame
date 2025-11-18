@@ -3,13 +3,15 @@ from typing import Dict
 import json
 
 class TradingEngine:
-    def __init__(self, model_id: int, db, market_fetcher, ai_trader, trade_fee_rate: float = 0.001):
+    def __init__(self, model_id: int, db, market_fetcher, ai_trader,
+                 trade_fee_rate: float = 0.001, slippage_pct: float = 0.05):
         self.model_id = model_id
         self.db = db
         self.market_fetcher = market_fetcher
         self.ai_trader = ai_trader
         self.coins = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE']
-        self.trade_fee_rate = trade_fee_rate  # 从配置中传入费率
+        self.trade_fee_rate = trade_fee_rate  # Trading fee rate (default 0.1%)
+        self.slippage_pct = slippage_pct / 100  # Slippage rate (default 0.05%)
     
     def execute_trading_cycle(self) -> Dict:
         try:
@@ -127,22 +129,23 @@ class TradingEngine:
         # 计算交易额和交易费（按交易额的比例）
         trade_amount = quantity * price  # 交易额
         trade_fee = trade_amount * self.trade_fee_rate  # 交易费（0.1%）
+        slippage_cost = trade_amount * self.slippage_pct  # 滑点成本（0.05%）
         required_margin = (quantity * price) / leverage  # 保证金
-        
-        # 总需资金 = 保证金 + 交易费
-        total_required = required_margin + trade_fee
+
+        # 总需资金 = 保证金 + 交易费 + 滑点
+        total_required = required_margin + trade_fee + slippage_cost
         if total_required > portfolio['cash']:
-            return {'coin': coin, 'error': 'Insufficient cash (including fees)'}
-        
+            return {'coin': coin, 'error': 'Insufficient cash (including fees and slippage)'}
+
         # 更新持仓
         self.db.update_position(
             self.model_id, coin, quantity, price, leverage, 'long'
         )
-        
-        # 记录交易（包含交易费）
+
+        # 记录交易（包含交易费和滑点）
         self.db.add_trade(
-            self.model_id, coin, 'buy_to_enter', quantity, 
-            price, leverage, 'long', pnl=0, fee=trade_fee  # 新增fee参数
+            self.model_id, coin, 'buy_to_enter', quantity,
+            price, leverage, 'long', pnl=0, fee=trade_fee, slippage=slippage_cost
         )
         
         return {
@@ -151,8 +154,9 @@ class TradingEngine:
             'quantity': quantity,
             'price': price,
             'leverage': leverage,
-            'fee': trade_fee,  # 返回费用信息
-            'message': f'Long {quantity:.4f} {coin} @ ${price:.2f} (Fee: ${trade_fee:.2f})'
+            'fee': trade_fee,
+            'slippage': slippage_cost,
+            'message': f'Long {quantity:.4f} {coin} @ ${price:.2f} (Fee: ${trade_fee:.2f}, Slippage: ${slippage_cost:.2f})'
         }
     
     def _execute_sell(self, coin: str, decision: Dict, market_state: Dict, 
@@ -167,22 +171,23 @@ class TradingEngine:
         # 计算交易额和交易费
         trade_amount = quantity * price
         trade_fee = trade_amount * self.trade_fee_rate
+        slippage_cost = trade_amount * self.slippage_pct
         required_margin = (quantity * price) / leverage
-        
-        # 总需资金 = 保证金 + 交易费
-        total_required = required_margin + trade_fee
+
+        # 总需资金 = 保证金 + 交易费 + 滑点
+        total_required = required_margin + trade_fee + slippage_cost
         if total_required > portfolio['cash']:
-            return {'coin': coin, 'error': 'Insufficient cash (including fees)'}
-        
+            return {'coin': coin, 'error': 'Insufficient cash (including fees and slippage)'}
+
         # 更新持仓
         self.db.update_position(
             self.model_id, coin, quantity, price, leverage, 'short'
         )
-        
-        # 记录交易（包含交易费）
+
+        # 记录交易（包含交易费和滑点）
         self.db.add_trade(
-            self.model_id, coin, 'sell_to_enter', quantity, 
-            price, leverage, 'short', pnl=0, fee=trade_fee  # 新增fee参数
+            self.model_id, coin, 'sell_to_enter', quantity,
+            price, leverage, 'short', pnl=0, fee=trade_fee, slippage=slippage_cost
         )
         
         return {
@@ -192,7 +197,8 @@ class TradingEngine:
             'price': price,
             'leverage': leverage,
             'fee': trade_fee,
-            'message': f'Short {quantity:.4f} {coin} @ ${price:.2f} (Fee: ${trade_fee:.2f})'
+            'slippage': slippage_cost,
+            'message': f'Short {quantity:.4f} {coin} @ ${price:.2f} (Fee: ${trade_fee:.2f}, Slippage: ${slippage_cost:.2f})'
         }
     
     def _execute_close(self, coin: str, decision: Dict, market_state: Dict, 
@@ -217,18 +223,19 @@ class TradingEngine:
         else:  # short
             gross_pnl = (entry_price - current_price) * quantity
         
-        # 计算平仓交易费（按平仓时的交易额）
+        # 计算平仓交易费和滑点（按平仓时的交易额）
         trade_amount = quantity * current_price
         trade_fee = trade_amount * self.trade_fee_rate
-        net_pnl = gross_pnl - trade_fee  # 净利润 = 毛利润 - 交易费
-        
+        slippage_cost = trade_amount * self.slippage_pct
+        net_pnl = gross_pnl - trade_fee - slippage_cost  # 净利润 = 毛利润 - 交易费 - 滑点
+
         # 关闭持仓
         self.db.close_position(self.model_id, coin, side)
-        
-        # 记录平仓交易（包含费用和净利润）
+
+        # 记录平仓交易（包含费用、滑点和净利润）
         self.db.add_trade(
             self.model_id, coin, 'close_position', quantity,
-            current_price, position['leverage'], side, pnl=net_pnl, fee=trade_fee  # 新增fee参数
+            current_price, position['leverage'], side, pnl=net_pnl, fee=trade_fee, slippage=slippage_cost
         )
         
         return {
@@ -238,5 +245,6 @@ class TradingEngine:
             'price': current_price,
             'pnl': net_pnl,
             'fee': trade_fee,
-            'message': f'Close {coin}, Gross P&L: ${gross_pnl:.2f}, Fee: ${trade_fee:.2f}, Net P&L: ${net_pnl:.2f}'
+            'slippage': slippage_cost,
+            'message': f'Close {coin}, Gross P&L: ${gross_pnl:.2f}, Fee: ${trade_fee:.2f}, Slippage: ${slippage_cost:.2f}, Net P&L: ${net_pnl:.2f}'
         }
