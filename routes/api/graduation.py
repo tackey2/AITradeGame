@@ -99,10 +99,10 @@ def get_model_graduation_status(model_id):
             conn.close()
             return jsonify({'error': 'Model not found'}), 404
 
-        # Get trades count and first trade date
+        # Get trades count and first trade date (exclude 'hold' signals)
         cursor.execute('''
             SELECT COUNT(*) as count, MIN(timestamp) as first_trade
-            FROM trades WHERE model_id = ?
+            FROM trades WHERE model_id = ? AND signal != 'hold'
         ''', (model_id,))
         trade_info = cursor.fetchone()
         total_trades = trade_info['count']
@@ -114,19 +114,19 @@ def get_model_graduation_status(model_id):
             first_date = datetime.fromisoformat(first_trade_date)
             testing_days = (datetime.now() - first_date).days
 
-        # Get win rate
+        # Get win rate (exclude 'hold' signals)
         cursor.execute('''
             SELECT
                 COUNT(CASE WHEN pnl > 0 THEN 1 END) as wins,
                 COUNT(*) as total
-            FROM trades WHERE model_id = ?
+            FROM trades WHERE model_id = ? AND signal != 'hold'
         ''', (model_id,))
         win_data = cursor.fetchone()
         win_rate = (win_data['wins'] / win_data['total'] * 100) if win_data['total'] > 0 else 0
 
-        # Calculate Sharpe ratio (simplified - using trade returns)
+        # Calculate Sharpe ratio (simplified - using trade returns, exclude 'hold' signals)
         cursor.execute('''
-            SELECT pnl FROM trades WHERE model_id = ? ORDER BY timestamp
+            SELECT pnl FROM trades WHERE model_id = ? AND signal != 'hold' ORDER BY timestamp
         ''', (model_id,))
         trades = cursor.fetchall()
 
@@ -279,13 +279,13 @@ def get_benchmark_comparison(model_id):
                 'message': 'Model has no trading history to compare'
             }), 400
 
-        # Get model's performance
+        # Get model's performance (exclude 'hold' signals)
         cursor.execute('''
             SELECT
                 COUNT(*) as total_trades,
                 COUNT(CASE WHEN pnl > 0 THEN 1 END) as wins,
                 COALESCE(SUM(pnl), 0) as total_pnl
-            FROM trades WHERE model_id = ?
+            FROM trades WHERE model_id = ? AND signal != 'hold'
         ''', (model_id,))
         model_stats = cursor.fetchone()
 
