@@ -3559,7 +3559,7 @@ input:checked + .toggle-slider:before {
    MULTI-MODEL COMPARISON MODAL
    ============================================ */
 
-.modal {
+.comparison-modal {
     position: fixed;
     top: 0;
     left: 0;
