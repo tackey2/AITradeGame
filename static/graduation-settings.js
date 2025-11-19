@@ -4,7 +4,8 @@ const strategyPresets = {
     quick_test: {
         min_trades: 20,
         confidence_level: 80,
-        min_testing_days: 14,
+        min_testing_days: 0,  // Not used when min_testing_minutes is set
+        min_testing_minutes: 5,  // 5 minutes for quick testing
         min_win_rate: 50.0,
         min_sharpe_ratio: 0.8,
         max_drawdown_pct: 25.0
@@ -12,7 +13,8 @@ const strategyPresets = {
     standard: {
         min_trades: 50,
         confidence_level: 95,
-        min_testing_days: 30,
+        min_testing_days: 7,  // 7 days
+        min_testing_minutes: 0,  // Not used when min_testing_days is set
         min_win_rate: 55.0,
         min_sharpe_ratio: 1.0,
         max_drawdown_pct: 20.0
@@ -20,7 +22,8 @@ const strategyPresets = {
     conservative: {
         min_trades: 100,
         confidence_level: 99,
-        min_testing_days: 60,
+        min_testing_days: 30,  // 30 days
+        min_testing_minutes: 0,  // Not used when min_testing_days is set
         min_win_rate: 60.0,
         min_sharpe_ratio: 1.2,
         max_drawdown_pct: 15.0
@@ -37,6 +40,7 @@ async function loadGraduationSettings() {
         document.getElementById('minTrades').value = settings.min_trades || 20;
         document.getElementById('confidenceLevel').value = settings.confidence_level || 80;
         document.getElementById('minTestingDays').value = settings.min_testing_days || 14;
+        document.getElementById('minTestingMinutes').value = settings.min_testing_minutes || 0;
         document.getElementById('minWinRate').value = settings.min_win_rate || 50;
         document.getElementById('minSharpeRatio').value = settings.min_sharpe_ratio || 0.8;
         document.getElementById('maxDrawdownPct').value = settings.max_drawdown_pct || 25;
@@ -59,6 +63,7 @@ async function saveGraduationSettings() {
             min_trades: parseInt(document.getElementById('minTrades').value),
             confidence_level: parseInt(document.getElementById('confidenceLevel').value),
             min_testing_days: parseInt(document.getElementById('minTestingDays').value),
+            min_testing_minutes: parseInt(document.getElementById('minTestingMinutes').value),
             min_win_rate: document.getElementById('enableWinRate').checked ?
                 parseFloat(document.getElementById('minWinRate').value) : null,
             min_sharpe_ratio: document.getElementById('enableSharpe').checked ?
@@ -95,6 +100,7 @@ function applyPreset(presetName) {
     document.getElementById('minTrades').value = preset.min_trades;
     document.getElementById('confidenceLevel').value = preset.confidence_level;
     document.getElementById('minTestingDays').value = preset.min_testing_days;
+    document.getElementById('minTestingMinutes').value = preset.min_testing_minutes;
     document.getElementById('minWinRate').value = preset.min_win_rate;
     document.getElementById('minSharpeRatio').value = preset.min_sharpe_ratio;
     document.getElementById('maxDrawdownPct').value = preset.max_drawdown_pct;

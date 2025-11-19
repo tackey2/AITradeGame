@@ -108,11 +108,14 @@ def get_model_graduation_status(model_id):
         total_trades = trade_info['count']
         first_trade_date = trade_info['first_trade']
 
-        # Calculate testing days
+        # Calculate testing duration in both days and minutes
         testing_days = 0
+        testing_minutes = 0
         if first_trade_date:
             first_date = datetime.fromisoformat(first_trade_date)
-            testing_days = (datetime.now() - first_date).days
+            time_delta = datetime.now() - first_date
+            testing_days = time_delta.days
+            testing_minutes = int(time_delta.total_seconds() / 60)
 
         # Get win rate (exclude 'hold' signals)
         cursor.execute('''
@@ -176,16 +179,46 @@ def get_model_graduation_status(model_id):
             'display': f"{total_trades}/{settings['min_trades']} trades"
         })
 
-        # Days criterion
-        days_met = testing_days >= settings['min_testing_days']
-        if days_met:
+        # Duration criterion - support both minutes and days
+        # If min_testing_minutes is set and > 0, use minutes; otherwise use days
+        use_minutes = settings.get('min_testing_minutes', 0) > 0
+
+        if use_minutes:
+            min_duration = settings['min_testing_minutes']
+            actual_duration = testing_minutes
+            duration_met = testing_minutes >= min_duration
+
+            # Format display based on duration
+            if testing_minutes < 60:
+                actual_display = f"{testing_minutes} min"
+            elif testing_minutes < 1440:
+                actual_display = f"{testing_minutes // 60}h {testing_minutes % 60}m"
+            else:
+                actual_display = f"{testing_minutes // 1440}d {(testing_minutes % 1440) // 60}h"
+
+            if min_duration < 60:
+                required_display = f"{min_duration} min"
+            elif min_duration < 1440:
+                required_display = f"{min_duration // 60}h {min_duration % 60}m"
+            else:
+                required_display = f"{min_duration // 1440}d {(min_duration % 1440) // 60}h"
+
+            display_text = f"{actual_display} / {required_display}"
+        else:
+            # Use days (legacy mode)
+            min_duration = settings.get('min_testing_days', 14)
+            actual_duration = testing_days
+            duration_met = testing_days >= min_duration
+            display_text = f"{testing_days}/{min_duration} days"
+
+        if duration_met:
             passed_count += 1
         criteria.append({
             'name': 'Testing Duration',
-            'required': settings['min_testing_days'],
-            'actual': testing_days,
-            'met': days_met,
-            'display': f"{testing_days}/{settings['min_testing_days']} days"
+            'required': min_duration,
+            'actual': actual_duration,
+            'met': duration_met,
+            'display': display_text
         })
 
         # Win rate criterion

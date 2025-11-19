@@ -149,6 +149,7 @@ class Database:
                 min_trades INTEGER DEFAULT 20,
                 confidence_level INTEGER DEFAULT 80,
                 min_testing_days INTEGER DEFAULT 14,
+                min_testing_minutes INTEGER DEFAULT 0,
                 min_win_rate REAL DEFAULT 50.0,
                 min_sharpe_ratio REAL DEFAULT 0.8,
                 max_drawdown_pct REAL DEFAULT 25.0,
@@ -236,6 +237,14 @@ class Database:
         if cursor.fetchone()[0] == 0:
             cursor.execute('''
                 INSERT INTO cost_tracking_settings DEFAULT VALUES
+            ''')
+
+        # Migration: Add min_testing_minutes column if it doesn't exist
+        cursor.execute("PRAGMA table_info(graduation_settings)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'min_testing_minutes' not in columns:
+            cursor.execute('''
+                ALTER TABLE graduation_settings ADD COLUMN min_testing_minutes INTEGER DEFAULT 0
             ''')
 
         conn.commit()

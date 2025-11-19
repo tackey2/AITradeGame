@@ -1243,8 +1243,13 @@
                         </div>
                         <div class="form-group">
                             <label>Minimum Testing Days</label>
-                            <input type="number" id="minTestingDays" class="form-input" min="1" max="180" value="14">
-                            <small class="form-help">Ensure model is tested across different market conditions</small>
+                            <input type="number" id="minTestingDays" class="form-input" min="0" max="180" value="14">
+                            <small class="form-help">Set to 0 to use minutes instead (for quick testing)</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Minimum Testing Minutes</label>
+                            <input type="number" id="minTestingMinutes" class="form-input" min="0" max="10080" value="0">
+                            <small class="form-help">Use for quick testing (e.g., 5 minutes). Set to 0 to use days instead. If both set, minutes takes precedence.</small>
                         </div>
                     </div>
                 </div>
