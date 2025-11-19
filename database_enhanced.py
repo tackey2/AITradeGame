@@ -272,6 +272,51 @@ class EnhancedDatabase(Database):
         if 'active_profile_id' not in settings_columns:
             cursor.execute('ALTER TABLE model_settings ADD COLUMN active_profile_id INTEGER REFERENCES risk_profiles(id)')
 
+        # ============ Reports Table ============
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                report_type TEXT NOT NULL,  -- 'weekly_comparative', 'daily_individual', 'custom'
+                model_ids TEXT,  -- JSON array: '["1","2","3"]' or '"1"' for single model
+                period_start DATE NOT NULL,
+                period_end DATE NOT NULL,
+                file_path TEXT,
+                file_size INTEGER,
+                recommendation TEXT,  -- 'go_live', 'continue_testing', 'not_ready', NULL for single model
+                confidence_score REAL,
+                top_model_id INTEGER,  -- ID of recommended model (for comparative reports)
+                generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                generated_by_model TEXT,  -- Which AI model generated the analysis
+                status TEXT DEFAULT 'completed',  -- 'pending', 'generating', 'completed', 'failed'
+                error_message TEXT,
+                metadata TEXT  -- JSON: additional report metadata
+            )
+        ''')
+
+        # ============ Report Settings Table ============
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS report_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                analysis_ai_provider TEXT DEFAULT 'anthropic',  -- 'anthropic', 'openai', 'custom'
+                analysis_ai_model TEXT DEFAULT 'claude-sonnet-3.5',
+                analysis_api_key TEXT,
+                analysis_api_url TEXT,
+                trend_lookback_weeks INTEGER DEFAULT 2,  -- Start with 2 weeks
+                auto_expand_trend BOOLEAN DEFAULT 1,  -- Auto-expand to 4-8 weeks after 30 days
+                daily_report_retention_days INTEGER DEFAULT 30,
+                weekly_report_retention_days INTEGER DEFAULT 90,
+                enable_market_context BOOLEAN DEFAULT 1,
+                enable_behavior_analysis BOOLEAN DEFAULT 1,
+                enable_confidence_score BOOLEAN DEFAULT 1,
+                enable_change_detection BOOLEAN DEFAULT 1,
+                enable_trend_analysis BOOLEAN DEFAULT 1,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # Initialize default settings
+        cursor.execute('INSERT OR IGNORE INTO report_settings (id) VALUES (1)')
+
         conn.commit()
         conn.close()
 
@@ -952,56 +997,6 @@ class EnhancedDatabase(Database):
         conn.commit()
         conn.close()
         print("✅ System risk profiles initialized")
-
-        # ============ Reports Table ============
-        cursor = conn.cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS reports (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                report_type TEXT NOT NULL,  -- 'weekly_comparative', 'daily_individual', 'custom'
-                model_ids TEXT,  -- JSON array: '["1","2","3"]' or '"1"' for single model
-                period_start DATE NOT NULL,
-                period_end DATE NOT NULL,
-                file_path TEXT,
-                file_size INTEGER,
-                recommendation TEXT,  -- 'go_live', 'continue_testing', 'not_ready', NULL for single model
-                confidence_score REAL,
-                top_model_id INTEGER,  -- ID of recommended model (for comparative reports)
-                generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                generated_by_model TEXT,  -- Which AI model generated the analysis
-                status TEXT DEFAULT 'completed',  -- 'pending', 'generating', 'completed', 'failed'
-                error_message TEXT,
-                metadata TEXT  -- JSON: additional report metadata
-            )
-        ''')
-
-        # ============ Report Settings Table ============
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS report_settings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                analysis_ai_provider TEXT DEFAULT 'anthropic',  -- 'anthropic', 'openai', 'custom'
-                analysis_ai_model TEXT DEFAULT 'claude-sonnet-3.5',
-                analysis_api_key TEXT,
-                analysis_api_url TEXT,
-                trend_lookback_weeks INTEGER DEFAULT 2,  -- Start with 2 weeks
-                auto_expand_trend BOOLEAN DEFAULT 1,  -- Auto-expand to 4-8 weeks after 30 days
-                daily_report_retention_days INTEGER DEFAULT 30,
-                weekly_report_retention_days INTEGER DEFAULT 90,
-                enable_market_context BOOLEAN DEFAULT 1,
-                enable_behavior_analysis BOOLEAN DEFAULT 1,
-                enable_confidence_score BOOLEAN DEFAULT 1,
-                enable_change_detection BOOLEAN DEFAULT 1,
-                enable_trend_analysis BOOLEAN DEFAULT 1,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-
-        # Initialize default settings
-        cursor.execute('INSERT OR IGNORE INTO report_settings (id) VALUES (1)')
-
-        conn.commit()
-        conn.close()
-        print("✅ Reports schema initialized")
 
     def get_all_risk_profiles(self, include_inactive: bool = False) -> List[Dict]:
         """Get all risk profiles (system and custom)"""
