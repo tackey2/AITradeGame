@@ -129,7 +129,7 @@ class MarketAnalyzer:
 
             cursor.execute('''
                 SELECT COUNT(*) as count FROM trades
-                WHERE model_id = ? AND timestamp LIKE ?
+                WHERE model_id = ? AND timestamp LIKE ? AND signal != 'hold'
             ''', (model_id, f'{today}%'))
 
             trades_today = cursor.fetchone()['count']

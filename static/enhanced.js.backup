@@ -449,6 +449,7 @@ async function loadMultiModelChart(chartData) {
         },
         yAxis: {
             type: 'value',
+            scale: true,  // Dynamic scaling to show value changes more clearly
             axisLine: { lineStyle: { color: '#3c4556' } },
             axisLabel: {
                 color: '#9aa0a6',

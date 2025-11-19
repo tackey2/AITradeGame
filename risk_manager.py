@@ -192,6 +192,7 @@ class RiskManager:
             SELECT COUNT(*) as count FROM trades
             WHERE model_id = ?
             AND DATE(timestamp) = DATE(?)
+            AND signal != 'hold'
         ''', (model_id, today))
 
         row = cursor.fetchone()
