@@ -893,8 +893,12 @@ def trading_loop():
                             for exec_result in result['executions']:
                                 signal = exec_result.get('signal', 'unknown')
                                 coin = exec_result.get('coin', 'unknown')
-                                msg = exec_result.get('message', '')
-                                if signal != 'hold':
+
+                                # Check for error first
+                                if 'error' in exec_result:
+                                    print(f"  [ERROR] {coin}: {exec_result['error']}")
+                                elif signal != 'hold':
+                                    msg = exec_result.get('message', '')
                                     print(f"  [TRADE] {coin}: {msg}")
                     else:
                         error = result.get('error', 'Unknown error')
