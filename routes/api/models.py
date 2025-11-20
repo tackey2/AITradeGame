@@ -70,6 +70,20 @@ def add_model():
         return jsonify({'error': str(e)}), 500
 
 
+@models_bp.route('/api/models/<int:model_id>', methods=['GET'])
+def get_model(model_id):
+    """Get model details by ID"""
+    try:
+        db = app_context['db']
+        model = db.get_model(model_id)
+        if not model:
+            return jsonify({'error': f'Model {model_id} not found'}), 404
+        return jsonify(model)
+    except Exception as e:
+        print(f"[ERROR] Get model {model_id} failed: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @models_bp.route('/api/models/<int:model_id>', methods=['PUT'])
 def update_model(model_id):
     """Update model information"""

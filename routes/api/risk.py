@@ -29,15 +29,8 @@ def init_enhanced_components(model_id):
         notifiers[model_id] = Notifier(enhanced_db)
 
     if model_id not in explainers:
-        # Get model to access AI configuration
-        model = enhanced_db.get_model(model_id)
-        if model:
-            explainers[model_id] = AIExplainer(
-                enhanced_db,
-                api_url=model.get('api_url'),
-                api_key=model.get('api_key'),
-                model_name=model.get('model_name')
-            )
+        # AIExplainer only needs explanation_level, not API config
+        explainers[model_id] = AIExplainer(explanation_level='intermediate')
 
 
 # -------- Risk Status --------
@@ -58,7 +51,9 @@ def get_risk_status(model_id):
 
         # Get portfolio
         prices_data = market_fetcher.get_current_prices(['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE'])
-        portfolio = enhanced_db.get_portfolio(model_id, prices_data)
+        # Extract just the price values from the price data dict
+        current_prices = {coin: prices_data[coin]['price'] for coin in prices_data}
+        portfolio = enhanced_db.get_portfolio(model_id, current_prices)
 
         # Get settings (with defaults if not set)
         settings = enhanced_db.get_model_settings(model_id)

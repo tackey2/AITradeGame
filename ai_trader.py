@@ -130,16 +130,35 @@ Analyze and output JSON only.
     
     def _parse_response(self, response: str) -> Dict:
         response = response.strip()
-        
+
+        # Extract JSON from markdown code blocks
         if '```json' in response:
             response = response.split('```json')[1].split('```')[0]
         elif '```' in response:
             response = response.split('```')[1].split('```')[0]
-        
+
+        # Remove any comment lines (lines starting with #)
+        lines = response.split('\n')
+        cleaned_lines = [line for line in lines if not line.strip().startswith('#')]
+        response = '\n'.join(cleaned_lines)
+
+        # Try to parse the JSON
         try:
             decisions = json.loads(response.strip())
             return decisions
         except json.JSONDecodeError as e:
             print(f"[ERROR] JSON parse failed: {e}")
-            print(f"[DATA] Response:\n{response}")
+            print(f"[DATA] Original response:\n{response}")
+
+            # Try to extract JSON object using regex as fallback
+            import re
+            json_match = re.search(r'\{[\s\S]*\}', response)
+            if json_match:
+                try:
+                    decisions = json.loads(json_match.group(0))
+                    print(f"[INFO] Recovered JSON using regex fallback")
+                    return decisions
+                except json.JSONDecodeError:
+                    pass
+
             return {}
