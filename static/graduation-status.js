@@ -5,8 +5,41 @@ async function loadGraduationStatus(modelId) {
 
     try {
         const response = await fetch(`/api/models/${modelId}/graduation-status`);
-        const status = await response.json();
 
+        if (!response.ok) {
+            // Handle error responses
+            const errorData = await response.json();
+
+            if (response.status === 404) {
+                // Model not found - show helpful error message
+                console.error(`Model ${modelId} not found. Available models:`, errorData.available_model_ids);
+
+                if (errorData.hint) {
+                    console.warn(`Hint: ${errorData.hint}`);
+                }
+
+                // Show error in UI
+                const card = document.getElementById('graduationStatusCard');
+                if (card) {
+                    card.innerHTML = `
+                        <div class="error-message">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            <h3>Model Not Found</h3>
+                            <p>Model ID ${modelId} doesn't exist in the database.</p>
+                            ${errorData.hint ? `<p class="hint">${errorData.hint}</p>` : ''}
+                            <p>Please select a different model or check the console for details.</p>
+                        </div>
+                    `;
+                }
+
+                document.getElementById('graduationStatusSection').style.display = 'block';
+                return;
+            }
+
+            throw new Error(errorData.error || 'Failed to load graduation status');
+        }
+
+        const status = await response.json();
         renderGraduationStatus(status);
 
         // Show section

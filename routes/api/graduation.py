@@ -95,9 +95,31 @@ def get_model_graduation_status(model_id):
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM models WHERE id = ?', (model_id,))
         model = cursor.fetchone()
+
+        # Enhanced validation with detailed logging
         if not model:
+            # Log available model IDs to help debug
+            cursor.execute('SELECT id, name FROM models ORDER BY id')
+            all_models = cursor.fetchall()
+            available_ids = [m['id'] for m in all_models]
+
+            print(f"[WARN] Graduation status requested for model_id={model_id} but it doesn't exist")
+            print(f"[INFO] Available model IDs: {available_ids}")
+
+            if all_models:
+                print(f"[INFO] Available models:")
+                for m in all_models:
+                    print(f"  - ID {m['id']}: {m['name']}")
+
             conn.close()
-            return jsonify({'error': 'Model not found'}), 404
+            return jsonify({
+                'error': f'Model {model_id} not found',
+                'available_model_ids': available_ids,
+                'hint': f'Available models: {", ".join([f"ID {m[\'id\']}: {m[\'name\']}" for m in all_models])}'
+            }), 404
+
+        # Log successful model lookup
+        print(f"[INFO] Loading graduation status for model_id={model_id} (Name: {model['name']})")
 
         # Get trades count and first trade date (exclude 'hold' signals)
         cursor.execute('''
@@ -107,6 +129,15 @@ def get_model_graduation_status(model_id):
         trade_info = cursor.fetchone()
         total_trades = trade_info['count']
         first_trade_date = trade_info['first_trade']
+
+        # Log trade statistics for debugging
+        print(f"[DEBUG] Model {model_id}: Found {total_trades} trades (excluding 'hold' signals)")
+
+        # Also get count including hold signals for comparison
+        cursor.execute('SELECT COUNT(*) as count FROM trades WHERE model_id = ?', (model_id,))
+        total_with_hold = cursor.fetchone()['count']
+        if total_with_hold > total_trades:
+            print(f"[DEBUG] Model {model_id}: {total_with_hold - total_trades} 'hold' signals excluded from count")
 
         # Calculate testing duration in both days and minutes
         testing_days = 0

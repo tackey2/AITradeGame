@@ -665,17 +665,48 @@ class Database:
     # ============ Model Management (Updated) ============
 
     def add_model(self, name: str, provider_id: int, model_name: str, initial_capital: float = 10000) -> int:
-        """Add new trading model"""
+        """Add new trading model with improved error handling"""
         conn = self.get_connection()
         cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO models (name, provider_id, model_name, initial_capital)
-            VALUES (?, ?, ?, ?)
-        ''', (name, provider_id, model_name, initial_capital))
-        model_id = cursor.lastrowid
-        conn.commit()
-        conn.close()
-        return model_id
+
+        try:
+            # Verify provider exists before creating model
+            cursor.execute('SELECT id FROM providers WHERE id = ?', (provider_id,))
+            if not cursor.fetchone():
+                raise ValueError(f"Provider {provider_id} not found")
+
+            # Start explicit transaction
+            cursor.execute('BEGIN')
+
+            # Insert model
+            cursor.execute('''
+                INSERT INTO models (name, provider_id, model_name, initial_capital)
+                VALUES (?, ?, ?, ?)
+            ''', (name, provider_id, model_name, initial_capital))
+
+            model_id = cursor.lastrowid
+
+            # Verify the insert succeeded
+            cursor.execute('SELECT id, name FROM models WHERE id = ?', (model_id,))
+            created_model = cursor.fetchone()
+
+            if not created_model:
+                raise Exception(f"Model creation failed - ID {model_id} not found after insert")
+
+            # Commit transaction
+            conn.commit()
+
+            print(f"[SUCCESS] Model created: ID={model_id}, Name='{name}', Provider={provider_id}")
+            return model_id
+
+        except Exception as e:
+            # Rollback on any error
+            conn.rollback()
+            print(f"[ERROR] Failed to create model '{name}': {e}")
+            raise
+
+        finally:
+            conn.close()
 
     def get_model(self, model_id: int) -> Optional[Dict]:
         """Get model information"""
