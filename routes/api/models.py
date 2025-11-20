@@ -70,6 +70,20 @@ def add_model():
         return jsonify({'error': str(e)}), 500
 
 
+@models_bp.route('/api/models/<int:model_id>', methods=['GET'])
+def get_model(model_id):
+    """Get model details by ID"""
+    try:
+        db = app_context['db']
+        model = db.get_model(model_id)
+        if not model:
+            return jsonify({'error': f'Model {model_id} not found'}), 404
+        return jsonify(model)
+    except Exception as e:
+        print(f"[ERROR] Get model {model_id} failed: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @models_bp.route('/api/models/<int:model_id>', methods=['PUT'])
 def update_model(model_id):
     """Update model information"""
@@ -891,10 +905,17 @@ def trading_loop():
                         print(f"[OK] Model {model_id} completed")
                         if result.get('executions'):
                             for exec_result in result['executions']:
+                                # Debug: Print the full execution result
+                                print(f"  [DEBUG] Execution result: {exec_result}")
+
                                 signal = exec_result.get('signal', 'unknown')
                                 coin = exec_result.get('coin', 'unknown')
-                                msg = exec_result.get('message', '')
-                                if signal != 'hold':
+
+                                # Check for error first
+                                if 'error' in exec_result:
+                                    print(f"  [ERROR] {coin}: {exec_result['error']}")
+                                elif signal != 'hold':
+                                    msg = exec_result.get('message', '')
                                     print(f"  [TRADE] {coin}: {msg}")
                     else:
                         error = result.get('error', 'Unknown error')
