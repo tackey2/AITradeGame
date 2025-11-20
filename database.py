@@ -696,7 +696,7 @@ class Database:
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT m.*, p.name as provider_name
+            SELECT m.*, p.name as provider_name, p.api_key, p.api_url
             FROM models m
             LEFT JOIN providers p ON m.provider_id = p.id
             ORDER BY m.created_at DESC
