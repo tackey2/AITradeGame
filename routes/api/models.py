@@ -891,6 +891,9 @@ def trading_loop():
                         print(f"[OK] Model {model_id} completed")
                         if result.get('executions'):
                             for exec_result in result['executions']:
+                                # Debug: Print the full execution result
+                                print(f"  [DEBUG] Execution result: {exec_result}")
+
                                 signal = exec_result.get('signal', 'unknown')
                                 coin = exec_result.get('coin', 'unknown')
 

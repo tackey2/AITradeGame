@@ -24,15 +24,21 @@ class TradingEngine:
             decisions = self.ai_trader.make_decision(
                 market_state, portfolio, account_info
             )
-            
+
+            # Debug: Print AI decisions
+            print(f"[DEBUG] AI decisions for model {self.model_id}: {json.dumps(decisions, indent=2)}")
+
             self.db.add_conversation(
                 self.model_id,
                 user_prompt=self._format_prompt(market_state, portfolio, account_info),
                 ai_response=json.dumps(decisions, ensure_ascii=False),
                 cot_trace=''
             )
-            
+
             execution_results = self._execute_decisions(decisions, market_state, portfolio)
+
+            # Debug: Print execution results
+            print(f"[DEBUG] Execution results for model {self.model_id}: {json.dumps(execution_results, indent=2, default=str)}")
             
             updated_portfolio = self.db.get_portfolio(self.model_id, current_prices)
             self.db.record_account_value(
