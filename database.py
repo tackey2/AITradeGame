@@ -376,14 +376,14 @@ class Database:
     # ============ Trade Records ============
     
     def add_trade(self, model_id: int, coin: str, signal: str, quantity: float,
-              price: float, leverage: int = 1, side: str = 'long', pnl: float = 0, fee: float = 0):  # 新增fee参数
+              price: float, leverage: int = 1, side: str = 'long', pnl: float = 0, fee: float = 0):
         """Add trade record with fee"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
             INSERT INTO trades (model_id, coin, signal, quantity, price, leverage, side, pnl, fee)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)  # 新增fee字段
-        ''', (model_id, coin, signal, quantity, price, leverage, side, pnl, fee))  # 传入fee值
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (model_id, coin, signal, quantity, price, leverage, side, pnl, fee))
         conn.commit()
         conn.close()
     
