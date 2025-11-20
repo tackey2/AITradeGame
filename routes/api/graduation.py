@@ -111,11 +111,15 @@ def get_model_graduation_status(model_id):
                 for m in all_models:
                     print(f"  - ID {m['id']}: {m['name']}")
 
+            # Build hint string without backslashes in f-string
+            model_list = ", ".join([f"ID {m['id']}: {m['name']}" for m in all_models])
+            hint_message = f'Available models: {model_list}'
+
             conn.close()
             return jsonify({
                 'error': f'Model {model_id} not found',
                 'available_model_ids': available_ids,
-                'hint': f'Available models: {", ".join([f"ID {m[\'id\']}: {m[\'name\']}" for m in all_models])}'
+                'hint': hint_message
             }), 404
 
         # Log successful model lookup
